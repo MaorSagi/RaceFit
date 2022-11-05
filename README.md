@@ -22,6 +22,87 @@ The database of the cyclists, races, and teams can not be publish currently, par
 
 ## Running instructions
 
+These are the actions (tasks) the system allows:
+
+- Create teams cyclist participation in race and in stage
+- Create examples and labels input from raw data
+- Preprocessing 
+- Evaluate popularity baselines
+- Training and evaluation of RaceFit
+
+In the next sections I will describe the parameters for each one of the tasks with actual usage examples.
+
+
+### Create teams cyclist participation in race and in stage
+
+Creating binary matrices of cyclist-race and cyclist-stage. The matrices fill in 1 if the cyclist participated in a race (or stage) and 0 otherwise. 
+The team pcs IDs:
+| Team |  PCS Id  |
+|:-----|:--------:|
+| AG2R Citroën Team   | 1060 | 
+| CCC Team   | 1103 | 
+| Lotto Soudal   | 2088 | 
+| Team Jumbo-Visma   | 1330 | 
+| Israel - Premier Tech   | 2738 | 
+| Cofidis   | 1136 | 
+| Groupama - FDJ   | 1187 | 
+| Movistar Team   | 2040 | 
+| UAE Team Emirates   | 1253 | 
+| Trek - Segafredo   | 1258 | 
+ 
+mandatory parameters:
+```bash
+-a create_matrix
+-ti <team pcs id>
+```
+
+optional:
+```bash
+-o 1 (overwrite the existing files)
+```
+
+
+Usage example
+```bash
+python -a create_matrix -ti 1258
+```
+
+### Create examples and labels input from raw data
+
+Given race, cyclist and workouts of the last weeks prior the race (we defined it as workouts time window), this process is creating examples. Each example consist of race, cyclist and summarized workout vector, the label of the example is represented by the cyclist participation in race/stage.
+It is possible to choose to create the input for the model by stages or by races, the training section will describe this matter.
+
+Possible parameters:
+- Imputation: without, SimpleImputer, KNNImputer, IterativeImputer
+- Data Source: STRAVA, TP
+- Workouts Aggregation Function: SmartAgg (use both AVG and SUM), Average
+- Examples Features Non-Missing Ratio: without, float (0.4 value will cause dropping features with missing ratio of 60% or greater)
+- Standardization: StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler
+
+mandatory parameters:
+```bash
+-a create_input
+-iw <workouts imputer> (choose whether to use imputation method for the workouts table)
+-i <examples imputer> (choose whether to use imputation method for the examples)
+-t <time window size> (number of weeks weeks)
+-ti <team pcs id>
+-ws <data source>
+-af <aggregation function>
+-c <examples features non-missing ratio>
+```
+optional:
+```bash
+-rp 1 (change to race prediction instead of stage prediction  -which is the default)
+-o 1 (overwrite the existing files)
+-s <scaler>
+```
+
+Usage example
+```bash
+python -a create_input -iw without -i SimpleImputer -t 5 -ti 2738 -ws STRAVA -af SmartAgg -c 0.4 -rp 1 -o 1 -s StandardScaler
+```
+
+
 
 ## Plot Results
 
