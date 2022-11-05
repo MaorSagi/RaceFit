@@ -208,9 +208,28 @@ Usage example
 python -a train_eval -iw without -i SimpleImputer -t 5 -ti 2738 -o 1 -ws STRAVA -af SmartAgg -c 0.4 -oi 1 -m CatBoost
 ```
 
-
-
 ## Plot Results
+
+The analysis tools I used and are the following:
+- Precision@i , Recall@i while i is the number of cyclists recommended (for each parameter while the other parameters results are averaged)
+- Recall@(n+k) while n is the # cyclists participated and k is gap for the coach to choose from
+- Plot Feature Importance bar plots
+- Generate feature importance csv files sorted by ranking of importance for all teams
+- Plot Decision Tree top nodes
+- Plot Catboost tree top nodes
+- Plot the learning curve of the model by time (Time graph)
+- AUC of Precision@i-Recall@i graph (for each parameter while the other parameters results are averaged)
+- AUC of Precision@i-Recall@i interaction between 2 parameters based on chronological order of use.
+
+
+The configuration of the graphs to plot you can adjust using the file "results_consts". 
+
+Main configs:
+- SINGLE_RACE_TYPE: ONE_DAY_RACES,MAJOR_TOURS, GRAND_TOURS (show results only for one type of race)
+- WORKOUTS_SRC: STRAVA, TP 
+- SINGLE_RACE_TYPE: None for generating all teams plots or the name of the team (i.e. "Israel - Premier Tech")
+- with_baseline: plot baselines lines
+- top_i: while plotting Time graph, define the # cyclists recommended
 
 
 ## Support
