@@ -35,7 +35,7 @@ In the next sections I will describe the parameters for each one of the tasks wi
 
 ### Create teams cyclist participation in race and in stage
 
-Creating binary matrices of cyclist-race and cyclist-stage. The matrices fill in 1 if the cyclist participated in a race (or stage) and 0 otherwise. 
+Creating binary matrices of cyclist-race and cyclist-stage. The matrices are filled with 1's if the cyclist participated in a race (or stage) and 0's otherwise. 
 The team pcs IDs:
 | Team |  PCS Id  |
 |:-----|:--------:|
