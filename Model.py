@@ -9,51 +9,6 @@ from utils import *
 # from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler, LabelEncoder
 
 
-def workouts_aggregation(w):
-    from DataManager import sum_cols, avg_cols, last_cols
-    try:
-        number_of_workouts = len(w.index)
-        number_of_workouts_above_28_deg = None
-        if 'temp_max' in w.columns:
-            if not w[(~w['temp_max'].isna()) & (~w['temp_avg'].isna())].empty:
-                number_of_workouts_above_28_deg = 0
-        elif not w[~w['temp_avg'].isna()].empty:
-            number_of_workouts_above_28_deg = 0
-        temp_cond = ((~w['temp_avg'].isna()) & (w['temp_avg'] >= 28))
-        if 'temp_max' in w.columns:
-            temp_cond = temp_cond | ((~w['temp_max'].isna()) & (w['temp_max'] >= 28))
-        workouts_temp_above_28_deg = w[temp_cond]
-        number_of_workouts_above_28_deg = len(
-            workouts_temp_above_28_deg) if not workouts_temp_above_28_deg.empty else number_of_workouts_above_28_deg
-
-        agg_res = dict(number_of_workouts=number_of_workouts,
-                       number_of_workouts_above_28_deg=number_of_workouts_above_28_deg)
-        for col in w.columns:
-            if col in sum_cols:
-                agg_res[col] = w[col].sum()
-            elif col in last_cols:
-                last_not_nan = w[~w[col].isna()]
-                if last_not_nan.empty:
-                    agg_res[col] = None
-                else:
-                    last_workout = last_not_nan.sort_values('workout_datetime', ascending=False).iloc[0]
-                    agg_res[col] = last_workout[col]
-            elif col in avg_cols:
-                agg_res[col] = w[col].mean()
-            elif col == 'workout_datetime':
-                continue
-            else:
-                raise ValueError(f'Column {col} is missing in aggregation lists')
-            # TODO
-        # WORKOUTS_COLS.append(f'{col}_avg_year_d')
-        return agg_res
-    except:
-        print('')
-
-
-aggregation_functions = {'Average': lambda x: x.mean(), 'SmartAgg': workouts_aggregation}
-
-
 def leave_one_out(df, group_id):
     train_indices, test_indices = [], []
     df_grouped = df.groupby(group_id, sort=False)
@@ -111,12 +66,86 @@ def miss_rate(df):
     return sorted(miss_rate_dict.items(), key=lambda item: item[1])
 
 
+def get_team_ranking_bins_for_stage(stage_id: int) -> pd.DataFrame:
+    from DataManager import teams_rankings
+    return teams_rankings[teams_rankings['stage_id'] == stage_id]
+
+
+def duplicate_high_results_records(X, y, times_to_mul_list_str: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    X_addition = pd.DataFrame(columns=X.columns)
+    y_addition = pd.Series()
+    times_to_mul_list: list[int, ...] = eval(times_to_mul_list_str)
+    n_bins = len(times_to_mul_list)
+    for s_id, g in X.groupby('stage_id'):
+        team_ranking_for_stage = get_team_ranking_bins_for_stage(s_id)
+        if team_ranking_for_stage.empty:
+            continue
+        teams_rankings_row = team_ranking_for_stage.iloc[0]
+        cutoffs_str = teams_rankings_row[f'cutoffs_{n_bins}']
+        if str(cutoffs_str) == 'nan':
+            continue
+        cutoffs = eval(cutoffs_str)
+        ranking = teams_rankings_row[f'ranking']
+        i = 0
+        times_to_mul = get_times_to_multiply_the_record(cutoffs, i, ranking, times_to_mul_list)
+        X_addition, y_addition = mul_records(X_addition, g, times_to_mul, y, y_addition)
+    return X.append(X_addition, ignore_index=True), y.append(y_addition, ignore_index=True)
+
+
+def mul_records(X_addition, g, times_to_mul, y, y_addition):
+    for t in range(times_to_mul - 1):
+        X_addition = X_addition.append(g, ignore_index=True)
+        y_addition = y_addition.append(y[g.index], ignore_index=True)
+    return X_addition, y_addition
+
+
+def get_times_to_multiply_the_record(cutoffs, i, ranking, times_to_mul_list):
+    times_to_mul = times_to_mul_list[-1]
+    for c in cutoffs:
+        if ranking <= c:
+            times_to_mul = times_to_mul_list[i]
+            break
+        i += 1
+    return times_to_mul
+
+
 @time_wrapper
-def train(iteration, params, cyclists, stages):
-    from DataManager import teams_rankings,cyclist_stats_cols
+def train(iteration: int, params: dict[str: Union[str, int, tuple[str, object]]],
+          cyclists: pd.DataFrame,
+          stages: pd.DataFrame) -> None:
+    trained_model_path = get_models_path(params)
+    X, y, features_to_remove, model_name, overwrite, result_consideration = extract_training_parameters(
+        cyclists, params, stages)
+    try:
+        model_filename = f"{iteration + 1}_{model_name}.pkl"
+        model_full_path = f'{trained_model_path}/{model_filename}'
+        if is_file_exists_and_should_not_be_changed(overwrite, model_full_path):
+            return
+        model = params['model'][1]['constructor']()
+        if X.empty:
+            return
+        X_new, y_new = X.copy(), y.copy()
+        if result_consideration:
+            X_new, y_new = duplicate_high_results_records(X_new, y_new,result_consideration)
+        features_to_remove = features_to_remove + ['cyclist_id', 'stage_id', 'race_id']
+        X_new = X_new.drop(columns=set(X_new.columns).intersection(features_to_remove))
+        train_func = params['model'][1]['train']
+        train_func(model, X_new, y_new)
+        pickle.dump(model, open(model_full_path, 'wb'))
+    except Exception as err:
+        print(f'{err}')
+        print(get_params_str(params))
+        model_exec_path = get_models_path(params)
+        log(f"Params: {get_params_str(params)},Train : {err}\n {traceback.format_exc()}", "ERROR",
+            log_path=model_exec_path)
+        traceback.print_exc()
+        print()
+
+
+def extract_training_parameters(cyclists, params, stages):
+    from DataManager import cyclist_stats_cols
     overwrite = params['overwrite']
     result_consideration = params['result_consideration']
-    trained_model_path = get_models_path(params)
     model_name = params['model'][0]
     y = stages['participated']
     X = pd.concat([cyclists, stages], axis=1).drop(columns='participated')
@@ -131,56 +160,7 @@ def train(iteration, params, cyclists, stages):
     else:
         features_to_remove = []
     # features_to_remove = ['distance_from_last_workout', 'distance_from_last_race', 'cyclist_weeks_since_last_race']
-    try:
-        if (not overwrite) and os.path.exists(f'{trained_model_path}/{iteration + 1}_{model_name}.pkl'):
-            return
-        model = params['model'][1]['constructor']()
-        if not X.empty:
-            X_new, y_new = X.copy(), y.copy()
-            if result_consideration:
-                X_addition = pd.DataFrame(columns=X_new.columns)
-                y_addition = pd.Series()
-                mul_list = eval(result_consideration)
-                n_bins = len(mul_list)
-                for s_id, g in X_new.groupby('stage_id'):
-                    if teams_rankings[teams_rankings['stage_id'] == s_id].empty:
-                        continue
-                    teams_rankings_row = teams_rankings[teams_rankings['stage_id'] == s_id].iloc[0]
-                    if str(teams_rankings_row[f'cutoffs_{n_bins}']) == 'nan':
-                        continue
-                    cutoffs = eval(teams_rankings_row[f'cutoffs_{n_bins}'])
-                    ranking = teams_rankings_row[f'ranking']
-                    i = 0
-                    times_to_mul = mul_list[-1]
-                    for c in cutoffs:
-                        if ranking <= c:
-                            times_to_mul = mul_list[i]
-                            break
-                        i += 1
-                    for t in range(times_to_mul - 1):
-                        X_addition = X_addition.append(g, ignore_index=True)
-                        y_addition = y_addition.append(y_new[g.index], ignore_index=True)
-                X_new, y_new = X_new.append(X_addition, ignore_index=True), y_new.append(y_addition, ignore_index=True)
-            # for n,g in X.groupby('race_id'):
-            #     k_neighbors = y.loc[g.index].sum()-1
-            #     if k_neighbors == 0:
-            #         continue
-            #     oversample = SMOTE(k_neighbors=k_neighbors)
-            #     X_, y_ = oversample.fit_resample(g, y.loc[g.index].values)
-            #     X_new=X_new.append(X_,ignore_index=True)
-            #     y_new= y_new + y_.tolist()
-            features_to_remove = features_to_remove + ['cyclist_id', 'stage_id', 'race_id']
-            X_new = X_new.drop(columns=set(X_new.columns).intersection(features_to_remove))
-            params['model'][1]['train'](model, X_new, y_new)
-            pickle.dump(model, open(f'{trained_model_path}/{iteration}_{model_name}.pkl', 'wb'))
-    except Exception as err:
-        print(f'{err}')
-        print(get_params_str(params))
-        model_exec_path = get_models_path(params)
-        log(f"Params: {get_params_str(params)},Train : {err}\n {traceback.format_exc()}", "ERROR",
-            log_path=model_exec_path)
-        traceback.print_exc()
-        print()
+    return X, y, features_to_remove, model_name, overwrite, result_consideration
 
 
 def fill_races_pred_matrix(X_test, y_test, y_prob, races_cyclists_soft_pred_matrix):
@@ -410,7 +390,7 @@ def append_model_results(data_files, exec_dir_path, raw_data_dir, data_dir, mode
         append_row_to_csv(f'{exec_dir_path}/{ERROR_PARAMS_FILE_NAME}', error_row)
 
 
-def append_results_from_files(exec_dir_path):
+def append_results_from_files(exec_dir_path: str) -> None:
     for raw_data_dir in os.listdir(exec_dir_path):
         raw_data_dir_path = os.path.join(exec_dir_path, raw_data_dir)
         if os.path.isdir(raw_data_dir_path):
@@ -426,12 +406,12 @@ def append_results_from_files(exec_dir_path):
                             append_model_results(data_files, exec_dir_path, raw_data_dir, data_dir, model_dir)
 
 
-def fit_clustering_algorithm(clustering_algorithm_name,clustering_algorithm,k_clusters):
+def fit_clustering_algorithm(clustering_algorithm_name, clustering_algorithm, k_clusters):
     from DataManager import filtered_stages_till_2016
     import joblib
-    non_null_pred = (~filtered_stages_till_2016['distance'].isna()) & (~filtered_stages_till_2016['elevation_gain'].isna())
+    non_null_pred = (~filtered_stages_till_2016['distance'].isna()) & (
+        ~filtered_stages_till_2016['elevation_gain'].isna())
     filtered_stages = filtered_stages_till_2016[non_null_pred]
     kmeans = clustering_algorithm(n_clusters=k_clusters, random_state=0)
     kmeans.fit_predict(filtered_stages[['distance', 'elevation_gain']])
     joblib.dump(kmeans, f'{EXEC_PATH}/{clustering_algorithm_name}_model_{k_clusters}.joblib')
-

@@ -1,6 +1,6 @@
-import argparse
+from argparse import ArgumentParser
 import json
-from typing import Dict, Union, Tuple
+from typing import Union
 from DataManager import init_data, get_raw_data_path, get_data_path, create_boolean_matrix, create_input_data, \
     data_cleaning_and_preprocessing, data_imputation
 from Model import append_results_from_files, data_split, train, evaluate, get_models_path, fit_clustering_algorithm
@@ -22,9 +22,9 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.cluster import KMeans
 
-params: Dict[str, Union[str, int, Tuple[str, object]]]  # Model hyper-parameters
+params: dict[str: Union[str, int, tuple[str, object]]]  # Model hyper-parameters
 
-clustering_algorithms = {"K-Means":KMeans}
+clustering_algorithms = {"K-Means": KMeans}
 models = {'AdaBoost': {'constructor': lambda: AdaBoostClassifier(),
                        'train': AdaBoostClassifier.fit,
                        'predict': AdaBoostClassifier.predict,
@@ -88,7 +88,8 @@ def evaluate_popularity_in_continent_baseline(iteration, X_test, *_):
 
 
 feature_to_eval_function_dict = {"cyclist_popularity_ranking_in_team": evaluate_popularity_baseline,
-                                 "cyclist_popularity_ranking_in_continent_in_team": evaluate_popularity_in_continent_baseline,
+                                 "cyclist_popularity_ranking_in_continent_in_team":
+                                     evaluate_popularity_in_continent_baseline,
                                  "cyclist_popularity_ranking_in_race_class_in_team": None,
                                  "cyclist_popularity_ranking_in_race_type_in_team": None}
 
@@ -206,7 +207,76 @@ def experiment_loop(results_path,
             log_path=log_path)
 
 
-def run_job():
+def run_job() -> None:
+    clustering, create_input, create_stages_cyclists_matrix, eval_baselines, eval_model, k_clusters, \
+    overwrite, preprocessing, train_eval, train_model = extract_main_job_parameters()
+    non_team_dependent_actions = [create_stages_cyclists_matrix, clustering]
+    team_dependent_actions = [create_input, preprocessing, eval_baselines, train_eval, train_model, eval_model]
+    data_exec_path, raw_data_exec_path = '', ''
+    if any(non_team_dependent_actions):
+        log(f"Started", log_path=f"{EXEC_PATH}")
+    if any(team_dependent_actions):
+        data_exec_path = get_data_path(params)
+        raw_data_exec_path = get_raw_data_path(params)
+        log(f"Started", log_path=raw_data_exec_path)
+    try:
+        handle_job_use_cases(data_exec_path, raw_data_exec_path, clustering, create_input,
+                             create_stages_cyclists_matrix, eval_baselines,
+                             eval_model, k_clusters, overwrite, preprocessing, train_eval,
+                             train_model)
+
+        if any(non_team_dependent_actions):
+            log(f"Finished", log_path=f"{EXEC_PATH}")
+        if any(team_dependent_actions):
+            log(f"Finished", log_path=raw_data_exec_path)
+    except:
+        log(f"Main job, params: {get_params_str(params)}", "ERROR",
+            log_path=raw_data_exec_path)
+
+
+def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clustering: bool, create_input: bool,
+                         create_stages_cyclists_matrix: bool, eval_baselines: bool,
+                         eval_model: bool, k_clusters: int, overwrite: bool, preprocessing: bool, train_eval: bool,
+                         train_model: bool) -> None:
+    if create_stages_cyclists_matrix:
+        create_boolean_matrix()
+    X_raw_data_path = f'{raw_data_exec_path}/X_cols_raw_data.csv'
+    if create_input and is_file_does_not_exist_or_should_be_changed(X_raw_data_path, overwrite):
+        create_input_data(params)
+    X_data_path = f'{data_exec_path}/X_cols_data.csv'
+    if preprocessing and is_file_does_not_exist_or_should_be_changed(X_data_path, overwrite):
+        Y_raw_data_path = f'{raw_data_exec_path}/Y_cols_raw_data.csv'
+        Y_data_path = f'{data_exec_path}/Y_cols_data.csv'
+        X, Y = import_data_from_csv(X_raw_data_path), import_data_from_csv(Y_raw_data_path)
+        X, Y = data_cleaning_and_preprocessing(X, Y, params)
+        X = data_imputation(params, X)
+        X.to_csv(X_data_path, index=False, header=True)
+        Y.to_csv(Y_data_path, index=False, header=True)
+    if eval_baselines:
+        baseline_results_path = f'{data_exec_path}/{BASELINES_FILE_NAME}'
+        evaluate_baselines_functions = [feature_to_eval_function_dict[b] for b in evaluate_baselines]
+        expr_loop_args = (baseline_results_path, data_exec_path, "Baseline", evaluate_baselines_functions)
+        activate_experiment_loop(*expr_loop_args, baseline_results_path, overwrite)
+    if clustering:
+        fit_clustering_algorithm("K-Means", clustering_algorithms["K-Means"], k_clusters)
+    if train_eval or train_model or eval_model:
+        trained_model_path = get_models_path(params)
+        model_results_path = f'{trained_model_path}/{MODEL_RESULTS_FILE_NAME}'
+        evaluate_funcs = [evaluate] if (train_eval or eval_model) else None
+        train_func = train if (train_eval or train_model) else None
+        expr_loop_args = (model_results_path, trained_model_path, "Model", evaluate_funcs, train_func)
+        activate_experiment_loop(*expr_loop_args, model_results_path, overwrite)
+
+
+def activate_experiment_loop(expr_loop_args, model_results_path, overwrite):
+    if is_file_does_not_exist_or_should_be_changed(model_results_path, overwrite):
+        if is_file_exists_and_should_not_be_changed(model_results_path, overwrite):
+            os.remove(model_results_path)
+        experiment_loop(*expr_loop_args)
+
+
+def extract_main_job_parameters() -> tuple[Union[str, int], ...]:
+    global params
     create_stages_cyclists_matrix = params['create_matrix']
     create_input = params['create_input']
     preprocessing = params['preprocessing']
@@ -217,56 +287,8 @@ def run_job():
     overwrite = params['overwrite']
     clustering = params['clustering']
     k_clusters = params['k_clusters']
-    non_team_dependent_actions = [create_stages_cyclists_matrix,clustering]
-    team_dependent_actions = [create_input,preprocessing,eval_baselines,train_eval,train_model,eval_model]
-    if any(non_team_dependent_actions):
-        log(f"Started", log_path=f"{EXEC_PATH}")
-    if any(team_dependent_actions):
-        data_exec_path = get_data_path(params)
-        raw_data_exec_path = get_raw_data_path(params)
-        log(f"Started", log_path=raw_data_exec_path)
-    try:
-        if create_stages_cyclists_matrix:
-            create_boolean_matrix()
-        if create_input and ((not os.path.exists(f'{raw_data_exec_path}/X_cols_raw_data.csv')) or overwrite):
-            create_input_data(params)
-        if preprocessing and ((not os.path.exists(f'{data_exec_path}/X_cols_data.csv')) or overwrite):
-            X, Y = import_data_from_csv(f'{raw_data_exec_path}/X_cols_raw_data.csv'), import_data_from_csv(
-                f'{raw_data_exec_path}/Y_cols_raw_data.csv')
-            X, Y = data_cleaning_and_preprocessing(X, Y, params)
-            X = data_imputation(params, X)
-            X.to_csv(f'{data_exec_path}/X_cols_data.csv', index=False, header=True)
-            Y.to_csv(f'{data_exec_path}/Y_cols_data.csv', index=False, header=True)
-        if eval_baselines:
-            baseline_results_path = f'{data_exec_path}/{BASELINES_FILE_NAME}'
-            results_file_exists = os.path.exists(baseline_results_path)
-            if (not results_file_exists) or overwrite:
-                if results_file_exists and overwrite:
-                    os.remove(baseline_results_path)
-                evaluate_baselines_functions = [feature_to_eval_function_dict[b] for b in evaluate_baselines]
-                experiment_loop(baseline_results_path,
-                                data_exec_path, "Baseline", evaluate_baselines_functions)
-        if clustering:
-            fit_clustering_algorithm("K-Means", clustering_algorithms["K-Means"],k_clusters)
-        if train_eval or train_model or eval_model:
-            trained_model_path = get_models_path(params)
-            model_results_path = f'{trained_model_path}/{MODEL_RESULTS_FILE_NAME}'
-            model_results_file_exists = os.path.exists(model_results_path)
-            if (not model_results_file_exists) or overwrite:
-                if model_results_file_exists and overwrite:
-                    os.remove(model_results_path)
-                train_func = train if (train_eval or train_model) else None
-                evaluate_funcs = [evaluate] if (train_eval or eval_model) else None
-                experiment_loop(model_results_path,
-                                trained_model_path, "Model", evaluate_funcs, train_func)
-
-        if any(non_team_dependent_actions):
-            log(f"Finished", log_path=f"{EXEC_PATH}")
-        if any(team_dependent_actions):
-            log(f"Finished", log_path=raw_data_exec_path)
-    except:
-        log(f"Main job, params: {get_params_str(params)}", "ERROR",
-            log_path=raw_data_exec_path)
+    return clustering, create_input, create_stages_cyclists_matrix, eval_baselines, \
+           eval_model, k_clusters, overwrite, preprocessing, train_eval, train_model
 
 
 def write_results_to_file(results_path, iteration, preprocess_and_train_time, eval_time, results):
@@ -286,10 +308,13 @@ def write_results_to_file(results_path, iteration, preprocess_and_train_time, ev
     append_row_to_csv(results_path, total_scores)
 
 
-def get_exec_params():
-    global params
+def extract_exec_params():
+    parser = init_exec_parser()
+    init_params_from_parser(parser)
 
-    parser = argparse.ArgumentParser()
+
+def init_exec_parser() -> ArgumentParser:
+    parser = ArgumentParser()
     parser.add_argument('-r', '--row-threshold', type=str)
     parser.add_argument('-c', '--col-threshold', type=str)
     parser.add_argument('-iw', '--imputer-workouts', type=str)
@@ -314,12 +339,13 @@ def get_exec_params():
     parser.add_argument('-oi', '--only-important', type=int)
     parser.add_argument('-rp', '--race-prediction', type=int)
     parser.add_argument('-rc', '--result-consideration', type=str)
+    return parser
 
 
+def init_params_from_parser(parser: ArgumentParser) -> None:
+    global params
+    from DataManager import aggregation_functions
     args = parser.parse_args()
-
-    from Model import aggregation_functions
-
     params = dict(row_threshold=float(args.row_threshold) if (
             args.row_threshold and check_float(args.row_threshold)) else args.row_threshold,
                   col_threshold=float(args.col_threshold) if (
@@ -360,8 +386,6 @@ def get_exec_params():
                   k_clusters=args.k_clusters if args.k_clusters else None,
                   )
 
-    return params
-
 
 if __name__ == '__main__':
     create_dir_if_not_exist(EXECS_DIR_PATH)
@@ -370,12 +394,9 @@ if __name__ == '__main__':
     if EXPR_TASK == APPEND_RESULTS:
         append_results_from_files(EXEC_PATH)
     else:
-        # -r 0.75 -c 0.75 -i SimpleImputer -s StandardScaler -sm Cosine -m Linear -t 8 -af Average -pw "[0.0,0.3,0.5,0.85,1.0]" -a create_input -ws tp
-        # -r 0.75 -c 0.85 -i IterativeImputer -s MinMaxScaler -sm Cosine -m Linear -t 17 -af Average -pw "[0.0,0.3,0.8,1.0]" -o 1 -ds cv -a create_input -ws STRAVA
-        # ws (workouts_source) default is STRAVA
-        # ds (data_split) default is leave_one_out
-        params = get_exec_params()
+        extract_exec_params()
+        race_prediction = params['race_prediction']
         workouts_source = params['workouts_source']
         team_id = params['team_id']
-        init_data(team_id, workouts_source)
+        init_data(team_id, workouts_source,race_prediction)
         run_job()

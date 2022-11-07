@@ -1,6 +1,6 @@
 APPEND_RESULTS, RUN_EXPERIMENTS = "append_results", "run_experiments"
 EXPR_TASK = RUN_EXPERIMENTS
-EXEC_NAME = 'Oct 30 - rewrite exprs'
+EXEC_NAME = 'Nov 7 - refactoring tests'
 EXECS_DIR_PATH = 'executions'
 EXEC_PATH = f'{EXECS_DIR_PATH}/{EXEC_NAME}'
 ALLOCATION_MATRICES_PATH = 'allocation_matrices'
@@ -141,3 +141,4 @@ TP_AVG_COLS = ['hr_min', 'hr_max', 'hr_avg'
                'power_max', 'temp_min', 'temp_avg', 'temp_max', 'cadence_avg', 'cadence_max',
                'elevation_min', 'elevation_avg', 'elevation_max']
 TP_LAST_COLS = ['workout_datetime']
+
