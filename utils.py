@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from typing import Callable, Union, Literal
@@ -13,10 +14,13 @@ from expr_consts import *
 from datetime import datetime
 
 def is_file_does_not_exist_or_should_be_changed(overwrite: bool, file_path: str) -> bool:
-    return not is_file_exists_and_should_not_be_changed(overwrite,file_path)
+    return overwrite or (not os.path.exists(file_path))
 
 def is_file_exists_and_should_not_be_changed(overwrite: bool, file_path: str) -> bool:
     return (not overwrite) and os.path.exists(file_path)
+
+def is_file_exists_and_should_be_changed(overwrite: bool, file_path: str) -> bool:
+    return overwrite and os.path.exists(file_path)
 
 
 def get_params_str(params: dict[str: Union[str, int, tuple[str, object]]]) -> str:
@@ -169,7 +173,7 @@ def get_recall_kn(cyclists_participated: set[int], cyclists_pred_rankings_df: pd
                   num_of_cyclists_in_race: int) -> list[float, ...]:
     recalls_kn = []
     for k in range(K_POINTS):
-        pred_kn = cyclists_pred_rankings_df.iloc[:k + num_of_cyclists_in_race]['cyclist_id'].values
+        pred_kn = cyclists_pred_rankings_df.iloc[:k + num_of_cyclists_in_race][CYCLIST_ID_FEATURE].values
         participated_and_pred_kn = len(cyclists_participated.intersection(pred_kn))
         recall_kn = participated_and_pred_kn / num_of_cyclists_in_race if num_of_cyclists_in_race > 0 else 1
         recalls_kn.append(recall_kn)
@@ -180,7 +184,7 @@ def get_recalls_and_precisions_at_i(cyclists_participated: set[int], cyclists_pr
                                     num_of_cyclists_in_race: int) -> tuple[list[float, ...], list[float, ...]]:
     precisions, recalls = [1], [0]
     for i in range(1, NUM_OF_POINTS):
-        pred_i = cyclists_pred_rankings_df.iloc[:i]['cyclist_id'].values
+        pred_i = cyclists_pred_rankings_df.iloc[:i][CYCLIST_ID_FEATURE].values
         participated_and_pred_i = len(cyclists_participated.intersection(pred_i))
         precision_i = participated_and_pred_i / i
         recall_i = participated_and_pred_i / num_of_cyclists_in_race if num_of_cyclists_in_race > 0 else 1
@@ -196,7 +200,7 @@ def get_mean_reciprocal_rank(participated_cyclists_rankings: list[int, ...]) -> 
 
 def get_participated_cyclists_rankings(cyclists_participated: set[int, ...], cyclists_pred_rankings_df: pd.DataFrame) -> \
         list[int, ...]:
-    return cyclists_pred_rankings_df[cyclists_pred_rankings_df['cyclist_id'].isin(cyclists_participated)].index
+    return cyclists_pred_rankings_df[cyclists_pred_rankings_df[CYCLIST_ID_FEATURE].isin(cyclists_participated)].index
 
 
 def get_index_of_cyclists_participated(ground_truth: pd.Series) -> set[int, ...]:
@@ -204,9 +208,16 @@ def get_index_of_cyclists_participated(ground_truth: pd.Series) -> set[int, ...]
 
 
 def get_cyclists_scores(row_soft: pd.Series) -> pd.DataFrame:
-    return pd.DataFrame([{'cyclist_id': c, 'score': s} for c, s in row_soft.items()]).sort_values(
+    return pd.DataFrame([{CYCLIST_ID_FEATURE: c, 'score': s} for c, s in row_soft.items()]).sort_values(
         'score', ascending=False).reset_index(drop=True)
 
+def set_metrics_array_to_str(total_scores: dict[str:Union[str, float]],baseline: str=None) -> None:
+    total_scores['precision_recall_curve'] = json.dumps(list(total_scores['precision_recall_curve']))
+    total_scores['roc_curve'] = json.dumps(list(total_scores['roc_curve']))
+    total_scores['precisions'] = json.dumps(list(total_scores['precisions']))
+    total_scores['recalls'] = json.dumps(list(total_scores['recalls']))
+    total_scores['recalls_kn'] = json.dumps(list(total_scores['recalls_kn']))
+    total_scores['baseline'] = baseline
 
 def evaluate_results(params: dict[str: Union[str, int, tuple[str, object]]], iteration: int,
                      race_cyclists: dict[int, list[int, ...]],
@@ -216,14 +227,14 @@ def evaluate_results(params: dict[str: Union[str, int, tuple[str, object]]], ite
     total_scores = init_scores_dict()
     for idx, row in races_cyclists_pred_matrix.iterrows():
         row_soft = races_cyclists_soft_pred_matrix.loc[idx]
-        race_id = row['race_id']
+        race_id = row[RACE_ID_FEATURE]
         candidates = race_cyclists[race_id]
         ground_truth, row_pred, row_soft = append_predictions_to_pred_file(candidates, idx, iteration, params,
                                                                            prediction_matrix_path, races_columns,
                                                                            races_cyclists_test_matrix, row, row_soft)
 
         recall_new_points, fpr_new_points = np.linspace(0, 1, NUM_OF_POINTS), np.linspace(0, 1, NUM_OF_POINTS)
-        total_scores['race_id'] = race_id
+        total_scores[RACE_ID_FEATURE] = race_id
         try:
             total_scores, precision_new_points = eval_pr_curve(ground_truth, recall_new_points, row_soft, total_scores)
             total_scores = eval_roc(fpr_new_points, ground_truth, row_soft, total_scores)

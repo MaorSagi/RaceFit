@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 import json
 from typing import Union
+import pandas as pd
 from DataManager import init_data, get_raw_data_path, get_data_path, create_boolean_matrix, create_input_data, \
     data_cleaning_and_preprocessing, data_imputation
 from Model import append_results_from_files, data_split, train, evaluate, get_models_path, fit_clustering_algorithm
@@ -79,11 +80,11 @@ similarity_functions = {'Cosine': cosine_similarity, 'Euclidean': euclidean_dist
 encoders = {'LabelEncoder': LabelEncoder}
 
 
-def evaluate_popularity_baseline(iteration, X_test, *_):
+def evaluate_popularity_baseline(iteration: int, X_test: pd.DataFrame, *_) -> dict[str: Union[str, float]]:
     return evaluate_baseline("cyclist_popularity_ranking_in_team", iteration, X_test)
 
 
-def evaluate_popularity_in_continent_baseline(iteration, X_test, *_):
+def evaluate_popularity_in_continent_baseline(iteration: int, X_test: pd.DataFrame, *_) -> dict[str: Union[str, float]]:
     return evaluate_baseline("cyclist_popularity_ranking_in_continent_in_team", iteration, X_test)
 
 
@@ -95,76 +96,97 @@ feature_to_eval_function_dict = {"cyclist_popularity_ranking_in_team": evaluate_
 
 
 @time_wrapper
-def evaluate_baseline(baseline_feature, iteration, X_test):
+def evaluate_baseline(baseline_name: str, iteration: int, X_test: pd.DataFrame) -> dict[str:Union[str, float]]:
+    overwrite, prediction_matrix_path, races_cyclist_matrix = init_parameters_for_eval_baselines()
+    if is_file_exists_and_should_be_changed(overwrite, prediction_matrix_path):
+        os.remove(prediction_matrix_path)
+    races_columns, races_cyclists_pred_matrix, races_cyclists_soft_pred_matrix, \
+    races_cyclists_test_matrix = create_prediction_matrices(X_test, races_cyclist_matrix)
+    grouped_data_by_races = X_test.groupby(RACE_ID_FEATURE)
+    i = 0
+    total_scores = {}
+    race_cyclists = {}
+    for race_id, g in grouped_data_by_races:
+        top_cyclists = get_top_cyclists(baseline_name, g, race_id, races_columns, races_cyclists_test_matrix)
+
+        race_cyclists[race_id] = set([str(e) for e in X_test[X_test[RACE_ID_FEATURE] == race_id][CYCLIST_ID_FEATURE].values])
+        cyclists_in_team = race_cyclists[race_id]
+        set_prediction_matrix(i, race_id, races_columns, races_cyclists_pred_matrix, top_cyclists)
+        set_prediction_proba_matrix(baseline_name, cyclists_in_team, g, i, race_id, races_columns,
+                                    races_cyclists_soft_pred_matrix)
+        i += 1
+        total_scores = evaluate_results(params, iteration, race_cyclists, races_columns, races_cyclists_pred_matrix,
+                                        races_cyclists_soft_pred_matrix, races_cyclists_test_matrix,
+                                        prediction_matrix_path, log_path=get_data_path(params))
+    set_metrics_array_to_str(total_scores,baseline_name)
+
+    return total_scores
+
+
+def init_parameters_for_eval_baselines() -> tuple[Union[str, pd.DataFrame], ...]:
     from DataManager import races_matrix_path
     races_cyclist_matrix = import_data_from_csv(races_matrix_path)
     data_path = get_data_path(params)
     prediction_matrix_path = f"{data_path}/prediction_matrix.csv"
-    if os.path.exists(prediction_matrix_path) and params['overwrite']:
-        os.remove(prediction_matrix_path)
+    overwrite = params['overwrite']
+    return overwrite, prediction_matrix_path, races_cyclist_matrix
+
+
+def set_prediction_proba_matrix(baseline_feature: str, cyclists_in_team: set[int, ...], race_group: pd.DataFrame,
+                                idx: int,
+                                race_id: int, races_columns: list[str, ...],
+                                races_cyclists_soft_pred_matrix: pd.DataFrame) -> None:
+    races_cyclists_soft_pred_matrix.at[idx, RACE_ID_FEATURE] = race_id
+    races_cyclists_soft_pred_matrix.loc[idx, races_columns[1:]] = 0
+    for c in cyclists_in_team:
+        races_cyclists_soft_pred_matrix.at[idx, c] = race_group[race_group[CYCLIST_ID_FEATURE] == float(c)].iloc[0][
+            baseline_feature]
+
+
+def set_prediction_matrix(idx: int, race_id: int, races_columns: list[str, ...],
+                          races_cyclists_pred_matrix: pd.DataFrame,
+                          top_cyclists: list[int, ...]) -> None:
+    races_cyclists_pred_matrix.at[idx, RACE_ID_FEATURE] = race_id
+    races_cyclists_pred_matrix.loc[idx, races_columns[1:]] = 0
+    races_cyclists_pred_matrix.loc[idx, top_cyclists] = 1
+
+
+def get_top_cyclists(baseline_feature: str, race_group: pd.DataFrame, race_id: int, races_columns: list[str, ...],
+                     races_cyclists_test_matrix: pd.DataFrame) -> list[int, ...]:
+    curr_race_pred = races_cyclists_test_matrix[RACE_ID_FEATURE] == race_id
+    cyclists_to_choose = races_cyclists_test_matrix.loc[curr_race_pred, races_columns[1:]].sum(
+        1)
+    cyclists_participated_in_race_predict = race_group.groupby(CYCLIST_ID_FEATURE, as_index=False).mean().fillna(0)
+    top_cyclists_indices = cyclists_participated_in_race_predict[baseline_feature].nlargest(
+        cyclists_to_choose.values[0]).index
+    top_cyclists = [str(c) for c in
+                    cyclists_participated_in_race_predict.loc[top_cyclists_indices, CYCLIST_ID_FEATURE].values]
+    return top_cyclists
+
+
+
+
+
+def create_prediction_matrices(X_test: pd.DataFrame, races_cyclist_matrix: pd.DataFrame) \
+        -> tuple[Union[list[str, ...], pd.DataFrame], ...]:
     races_cyclists_cpy = races_cyclist_matrix.copy()
-    races_cyclists_test_matrix = races_cyclists_cpy.loc[races_cyclists_cpy['race_id'].isin(X_test['race_id'])]
+    races_cyclists_test_matrix = races_cyclists_cpy.loc[races_cyclists_cpy[RACE_ID_FEATURE].isin(X_test[RACE_ID_FEATURE])]
     races_cyclists_test_matrix = races_cyclists_test_matrix.reset_index(drop=True)
     missing_cyclists_in_test = list(
-        filter(lambda c: str(c) not in races_cyclists_test_matrix.columns, X_test['cyclist_id'].unique()))
+        filter(lambda c: str(c) not in races_cyclists_test_matrix.columns, X_test[CYCLIST_ID_FEATURE].unique()))
     missing_cyclists_in_test = [str(c) for c in missing_cyclists_in_test]
     races_cyclists_test_matrix[missing_cyclists_in_test] = 0
     races_columns = races_cyclists_test_matrix.columns
     races_cyclists_pred_matrix = races_cyclists_test_matrix.copy()
     races_cyclists_pred_matrix[races_columns[1:]] = None
     races_cyclists_soft_pred_matrix = races_cyclists_pred_matrix.copy()
-
-    grouped_data_by_races = X_test.groupby('race_id')
-    i = 0
     races_cyclists_pred_matrix = races_cyclists_pred_matrix.fillna(0)
-    total_scores = []
-    race_cyclists = {}
-    for race_id, g in grouped_data_by_races:
-        curr_race_pred = races_cyclists_test_matrix['race_id'] == race_id
-        cyclists_to_choose = races_cyclists_test_matrix.loc[curr_race_pred, races_columns[1:]].sum(
-            1)
-        cyclists_participated_in_race_predict = g.groupby('cyclist_id', as_index=False).mean().fillna(0)
-
-        top_cyclists_indices = cyclists_participated_in_race_predict[baseline_feature].nlargest(
-            cyclists_to_choose.values[0]).index
-        top_cyclists = [str(c) for c in
-                        cyclists_participated_in_race_predict.loc[top_cyclists_indices, 'cyclist_id'].values]
-
-        race_cyclists[race_id] = set([str(e) for e in X_test[X_test['race_id'] == race_id]['cyclist_id'].values])
-        cyclists_in_team = race_cyclists[race_id]
-
-        # pred
-        races_cyclists_pred_matrix.at[i, 'race_id'] = race_id
-        races_cyclists_pred_matrix.loc[i, races_columns[1:]] = 0
-        races_cyclists_pred_matrix.loc[i, top_cyclists] = 1
-        # pred soft
-        races_cyclists_soft_pred_matrix.at[i, 'race_id'] = race_id
-        races_cyclists_soft_pred_matrix.loc[i, races_columns[1:]] = 0
-        for c in cyclists_in_team:
-            races_cyclists_soft_pred_matrix.at[i, c] = g[g['cyclist_id'] == float(c)].iloc[0][
-                baseline_feature]
-
-        i += 1
-
-        total_scores = evaluate_results(params, iteration, race_cyclists, races_columns, races_cyclists_pred_matrix,
-                                        races_cyclists_soft_pred_matrix, races_cyclists_test_matrix,
-                                        prediction_matrix_path, log_path=get_data_path(params))
-
-    total_scores['precision_recall_curve'] = json.dumps(list(total_scores['precision_recall_curve']))
-    total_scores['roc_curve'] = json.dumps(list(total_scores['roc_curve']))
-    total_scores['precisions'] = json.dumps(list(total_scores['precisions']))
-    total_scores['recalls'] = json.dumps(list(total_scores['recalls']))
-    total_scores['recalls_kn'] = json.dumps(list(total_scores['recalls_kn']))
-    total_scores['baseline'] = baseline_feature
-
-    # total_scores['norm_precisions'] = json.dumps(list(total_scores['norm_precisions']))
-    # total_scores['norm_recalls'] = json.dumps(list(total_scores['norm_recalls']))
-
-    return total_scores
+    return races_columns, races_cyclists_pred_matrix, races_cyclists_soft_pred_matrix, races_cyclists_test_matrix
 
 
-def experiment_loop(results_path,
-                    log_path, action_logging_name, eval_functions=None, train_func=None):
+def experiment_loop(results_path: str,
+                    log_path: str, action_logging_name: str, eval_functions: list[Callable] = None,
+                    train_func: Callable = None) -> None:
     from DataManager import important_races_ids
     if eval_functions or train_func:
         only_important = (params['only_important'] is not None) and params['only_important']
@@ -173,7 +195,7 @@ def experiment_loop(results_path,
             f'{data_exec_path}/Y_cols_data.csv')
         iteration = 0
         cv_num_of_splits = params['kfold']
-        group_by_feature = 'race_id' if params['data_split'] is None else params['data_split']
+        group_by_feature = RACE_ID_FEATURE if params['data_split'] is None else params['data_split']
         split_args = (X, group_by_feature, cv_num_of_splits) if cv_num_of_splits else (X, group_by_feature)
         for train_index, test_index in data_split(params['data_split'], *split_args):
             try:
@@ -190,7 +212,7 @@ def experiment_loop(results_path,
                 if eval_functions is not None:
                     for eval_function in eval_functions:
                         # ONLY VALID FOR TEST WITH ONE RACE
-                        race_id = X_test['race_id'].unique()[0]
+                        race_id = X_test[RACE_ID_FEATURE].unique()[0]
                         if (not only_important) or (only_important and (race_id in important_races_ids)):
                             non_baseline_args = (Y_test, params)
                             eval_time, results = eval_function(iteration, X_test, *non_baseline_args)
@@ -268,9 +290,10 @@ def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clusterin
         activate_experiment_loop(*expr_loop_args, model_results_path, overwrite)
 
 
-def activate_experiment_loop(expr_loop_args, model_results_path, overwrite):
+def activate_experiment_loop(expr_loop_args: tuple[Union[str, Callable], ...], model_results_path: str,
+                             overwrite: bool) -> None:
     if is_file_does_not_exist_or_should_be_changed(model_results_path, overwrite):
-        if is_file_exists_and_should_not_be_changed(model_results_path, overwrite):
+        if is_file_exists_and_should_be_changed(model_results_path, overwrite):
             os.remove(model_results_path)
         experiment_loop(*expr_loop_args)
 
@@ -291,7 +314,9 @@ def extract_main_job_parameters() -> tuple[Union[str, int], ...]:
            eval_model, k_clusters, overwrite, preprocessing, train_eval, train_model
 
 
-def write_results_to_file(results_path, iteration, preprocess_and_train_time, eval_time, results):
+def write_results_to_file(results_path: str, iteration: int,
+                          preprocess_and_train_time: float, eval_time: float,
+                          results: dict[str: Union[str, float]]) -> None:
     from DataManager import team_names_dict
     total_scores = dict()
     total_scores['preprocess_and_train_time'] = preprocess_and_train_time
@@ -308,7 +333,7 @@ def write_results_to_file(results_path, iteration, preprocess_and_train_time, ev
     append_row_to_csv(results_path, total_scores)
 
 
-def extract_exec_params():
+def extract_exec_params() -> None:
     parser = init_exec_parser()
     init_params_from_parser(parser)
 
@@ -398,5 +423,5 @@ if __name__ == '__main__':
         race_prediction = params['race_prediction']
         workouts_source = params['workouts_source']
         team_id = params['team_id']
-        init_data(team_id, workouts_source,race_prediction)
+        init_data(team_id, workouts_source, race_prediction)
         run_job()

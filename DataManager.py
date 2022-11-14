@@ -59,7 +59,7 @@ def init_data(team_id: int, workouts_source: str, race_prediction: bool) -> None
 def init_races_yeas_dict() -> None:
     global races_years_dict
     races_years_dict = {r_id: r_date.year for r_id, r_date in
-                        zip(stages['race_id'], stages['race_date'])}
+                        zip(stages[RACE_ID_FEATURE], stages['race_date'])}
 
 
 def init_allocation_matrices_paths(team_id: int) -> None:
@@ -73,7 +73,7 @@ def init_important_races_ids():
     global important_races_ids, important_races_lower
     important_races_ids = \
         stages[stages['race_name'].apply(lambda x: x.lower() in important_races_lower)][
-            'race_id'].unique()
+            RACE_ID_FEATURE].unique()
 
 
 def init_teams_dicts() -> None:
@@ -128,7 +128,7 @@ def init_cols(workouts_source: str, race_prediction: bool) -> None:
     # workouts_cols_without_date = list(
     #     filter(lambda x: x not in ['workout_datetime', 'workout_date'], workouts_cols))
     cyclist_cols = CYCLIST_GENERAL_COLS + list(
-        filter(lambda x: x != 'cyclist_id', workouts_cols)) + cyclist_stats_cols
+        filter(lambda x: x != CYCLIST_ID_FEATURE, workouts_cols)) + cyclist_stats_cols
     stages_cols = STAGES_COLS
     if race_prediction:
         stages_cols += ['time_trial_stages_count', 'is_flat', 'is_hills_flat', 'is_hills', 'is_mountains_flat',
@@ -141,7 +141,7 @@ def init_cyclists_teams(team_id) -> None:
     global cyclists_teams, workouts
     if team_id is not None:
         cyclists_teams = cyclists_teams[cyclists_teams['team_id'].isin(team_pcs_to_id[team_id])]
-    workouts = workouts[workouts['cyclist_id'].isin(cyclists_teams['cyclist_id'])]
+    workouts = workouts[workouts[CYCLIST_ID_FEATURE].isin(cyclists_teams[CYCLIST_ID_FEATURE])]
     for prop in ['start_date', 'stop_date']:
         cyclists_teams[prop] = pd.to_datetime(cyclists_teams[prop]).apply(lambda dt: dt.date())
     cyclists_teams['season'] = cyclists_teams['season'].apply(int)
@@ -153,7 +153,7 @@ def init_cyclists_teams(team_id) -> None:
 
 def init_cyclists() -> None:
     global cyclists
-    cyclists = cyclists[cyclists['cyclist_id'].isin(cyclists_teams['cyclist_id'])]
+    cyclists = cyclists[cyclists[CYCLIST_ID_FEATURE].isin(cyclists_teams[CYCLIST_ID_FEATURE])]
 
 
 def init_workouts(workouts_source: Literal[TP_SRC, STRAVA_SRC]) -> None:
@@ -191,9 +191,9 @@ def init_stages_results(team_id) -> None:
         stages_results = stages_results[stages_results['team_id'].isin(team_pcs_to_id[team_id])]
         filtered_stages_results = filtered_stages_results[
             filtered_stages_results['team_id'].isin(team_pcs_to_id[team_id])]
-    stages_results = stages_results[stages_results['stage_id'].isin(stages['stage_id'].values)]
+    stages_results = stages_results[stages_results[STAGE_ID_FEATURE].isin(stages[STAGE_ID_FEATURE].values)]
     filtered_stages_results = filtered_stages_results[
-        filtered_stages_results['stage_id'].isin(filtered_stages['stage_id'].values)]
+        filtered_stages_results[STAGE_ID_FEATURE].isin(filtered_stages[STAGE_ID_FEATURE].values)]
     filtered_stages_results = filtered_stages_results[
         filtered_stages_results['result_type'] != 'Teams classification']
 
@@ -233,8 +233,9 @@ def create_boolean_matrix() -> None:
     global stages_matrix_path, races_matrix_path
     stages_cyclists_df = get_cyclists_participation_in_stage()
     races_cyclists_df = get_cyclists_participation_in_race(stages_cyclists_df)
-    stages_cyclist_matrix = pd.get_dummies(stages_cyclists_df.set_index('stage_id')['cyclist_id']).max(level=0)
-    races_cyclist_matrix = pd.get_dummies(races_cyclists_df.set_index('race_id')['cyclist_id']).max(level=0)
+    stages_cyclist_matrix = pd.get_dummies(stages_cyclists_df.set_index(STAGE_ID_FEATURE)[CYCLIST_ID_FEATURE]).max(
+        level=0)
+    races_cyclist_matrix = pd.get_dummies(races_cyclists_df.set_index(RACE_ID_FEATURE)[CYCLIST_ID_FEATURE]).max(level=0)
     cyclist_sorted = get_sorted_cyclists_list()
     add_missing_cyclists_to_matrices(cyclist_sorted, races_cyclist_matrix, stages_cyclist_matrix)
 
@@ -250,8 +251,8 @@ def create_boolean_matrix() -> None:
 def get_races_sorted_by_date(races_cyclist_matrix: pd.DataFrame,
                              stages_cyclists_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(races_cyclist_matrix.index,
-                        columns=['race_id']).merge(stages_cyclists_df, on='race_id').sort_values(
-        'race_date', ascending=False)['race_id'].unique()
+                        columns=[RACE_ID_FEATURE]).merge(stages_cyclists_df, on=RACE_ID_FEATURE).sort_values(
+        'race_date', ascending=False)[RACE_ID_FEATURE].unique()
 
 
 def get_matrix_sorted(cyclist_sorted: list[int], stages_cyclist_matrix: pd.DataFrame,
@@ -260,7 +261,7 @@ def get_matrix_sorted(cyclist_sorted: list[int], stages_cyclist_matrix: pd.DataF
 
 
 def get_stages_sorted_by_race_date(stages_cyclists_df: pd.DataFrame) -> pd.DataFrame:
-    return stages_cyclists_df.sort_values(['race_date', 'race_id'], ascending=False)['stage_id'].unique()
+    return stages_cyclists_df.sort_values(['race_date', RACE_ID_FEATURE], ascending=False)[STAGE_ID_FEATURE].unique()
 
 
 def add_missing_cyclists_to_matrices(cyclist_sorted: list[int], races_cyclist_matrix: pd.DataFrame,
@@ -274,20 +275,20 @@ def add_missing_cyclists_to_matrices(cyclist_sorted: list[int], races_cyclist_ma
 def get_sorted_cyclists_list() -> list[int]:
     global cyclists_teams
     cyclists_teams_for_matrix = cyclists_teams.reset_index(drop=True)
-    cyclist_sorted = cyclists_teams_for_matrix.sort_values(['season', 'cyclist_id'], ascending=False)[
-        'cyclist_id'].unique()
+    cyclist_sorted = cyclists_teams_for_matrix.sort_values(['season', CYCLIST_ID_FEATURE], ascending=False)[
+        CYCLIST_ID_FEATURE].unique()
     cyclist_sorted = [float(c) for c in cyclist_sorted]
     return cyclist_sorted
 
 
 def get_cyclists_participation_in_stage() -> pd.DataFrame:
     global filtered_stages, filtered_stages_results
-    return (filtered_stages_results.merge(filtered_stages, on=['stage_id', 'race_id']))[
-        ['cyclist_id', 'stage_id', 'race_id', 'race_date']]
+    return (filtered_stages_results.merge(filtered_stages, on=[STAGE_ID_FEATURE, RACE_ID_FEATURE]))[
+        IDS_COLS + ['race_date']]
 
 
 def get_cyclists_participation_in_race(stages_cyclists_df: pd.DataFrame) -> pd.DataFrame:
-    return stages_cyclists_df.copy()[['cyclist_id', 'race_id', 'race_date']].drop_duplicates()
+    return stages_cyclists_df.copy()[[CYCLIST_ID_FEATURE, RACE_ID_FEATURE, 'race_date']].drop_duplicates()
 
 
 def preprocessing_cyclists_workout(params: dict[str: Union[str, int, tuple[str, object]]],
@@ -320,19 +321,26 @@ def cyclists_workouts_imputation(cyclists_workouts: pd.DataFrame,
     return cyclists_workouts
 
 
-def get_races_totals(races_cyclist_matrix: pd.DataFrame) -> tuple[dict[int, float], ...]:
+def get_races_totals(races_cyclist_matrix: pd.DataFrame, race_prediction: bool) -> tuple[
+    Union[dict[int, float], None], ...]:
     global filtered_stages
-    race_total_distances = {}
-    race_total_elevation_gains = {}
-    num_of_stages_in_race = {}
-    for i, r in races_cyclist_matrix.iterrows():
-        race_group = filtered_stages[filtered_stages['race_id'] == r['race_id']]
-        if race_group[race_group['distance'].isna()].empty:
-            race_total_distances[r['race_id']] = race_group['distance'].sum()
-        if race_group[race_group['elevation_gain'].isna()].empty:
-            race_total_elevation_gains[r['race_id']] = race_group['elevation_gain'].sum()
-        num_of_stages_in_race[r['race_id']] = len(race_group)
-    return num_of_stages_in_race, race_total_distances, race_total_elevation_gains
+    if not race_prediction:
+        race_total_distances = {}
+        race_total_elevation_gains = {}
+        num_of_stages_in_race = {}
+        for i, r in races_cyclist_matrix.iterrows():
+            race_id = r[RACE_ID_FEATURE]
+            race_group = filtered_stages[filtered_stages[RACE_ID_FEATURE] == race_id]
+            race_total_distances[race_id] = get_totals(race_group, 'distance')
+            race_total_elevation_gains[race_id] = get_totals(race_group, 'elevation_gain')
+            num_of_stages_in_race[race_id] = len(race_group)
+        return num_of_stages_in_race, race_total_distances, race_total_elevation_gains
+    return None, None, None
+
+
+def get_totals(race_group: pd.DataFrame, feature: str) -> Union[float, None]:
+    if race_group[race_group[feature].isna()].empty:
+        return race_group[feature].sum()
 
 
 def get_last_cyclists_records(X: pd.DataFrame, Y: pd.DataFrame, race_feature_key: str = None,
@@ -341,16 +349,17 @@ def get_last_cyclists_records(X: pd.DataFrame, Y: pd.DataFrame, race_feature_key
     if race_feature_key:
         Y_filtered = Y[Y[race_feature_key] == race_key] if not Y.empty else Y
         X_filtered = X.loc[Y_filtered.index]
-    last_cyclists_records = X_filtered.groupby('cyclist_id', as_index=False).last() if not X_filtered.empty else None
+    last_cyclists_records = X_filtered.groupby(CYCLIST_ID_FEATURE,
+                                               as_index=False).last() if not X_filtered.empty else None
     return last_cyclists_records
 
 
 def get_popularity_ranking_dict(cyclists_in_teams: pd.DataFrame, last_cyclists_records: pd.DataFrame,
                                 last_record_prop: str) -> dict[int, int]:
     cyclists_popularity_dict = {}
-    for c in cyclists_in_teams['cyclist_id'].values:
+    for c in cyclists_in_teams[CYCLIST_ID_FEATURE].values:
         if last_cyclists_records is not None:
-            cyclist_last_record = last_cyclists_records[last_cyclists_records['cyclist_id'] == float(c)]
+            cyclist_last_record = last_cyclists_records[last_cyclists_records[CYCLIST_ID_FEATURE] == float(c)]
             cyclists_popularity_dict[c] = cyclist_last_record.iloc[0][
                 last_record_prop] if not cyclist_last_record.empty else 0
         else:
@@ -372,7 +381,7 @@ def get_cyclist_workouts_by_years(cyclists_workouts: pd.DataFrame,
                                   years: int, end_time_window: date, cyclist_id: int) -> pd.DataFrame:
     last_years_date = end_time_window - timedelta(days=years * 365)
     cyclist_w_last_years = cyclists_workouts[last_years_date:end_time_window]
-    cyclist_w_last_years = cyclist_w_last_years[cyclist_w_last_years['cyclist_id'] == cyclist_id]
+    cyclist_w_last_years = cyclist_w_last_years[cyclist_w_last_years[CYCLIST_ID_FEATURE] == cyclist_id]
     return cyclist_w_last_years
 
 
@@ -436,7 +445,7 @@ def cyclist_not_in_team_by_race_date(cyclist_in_team: pd.Series, race_date: date
 def cyclist_event_exists_in_input(X: pd.DataFrame, Y: pd.DataFrame, cyclist_id: int,
                                   id_feature: int, event_id: int) -> bool:
     if not X.empty:
-        c_events = X.loc[X['cyclist_id'] == cyclist_id]
+        c_events = X.loc[X[CYCLIST_ID_FEATURE] == cyclist_id]
         events_indices = c_events.index
         return (len(events_indices) > 0) and (not Y.loc[events_indices].loc[Y[id_feature] == event_id].empty)
     return False
@@ -451,15 +460,16 @@ def create_input_data(params: dict[str: Union[str, int, tuple[str, object]]]) ->
     cyclists_general, cyclists_workouts, stages_general, \
     races_cyclist_matrix, input_matrix = init_dataframes_for_create_input_func(id_feature, race_prediction, params)
     cyclists_start_date: dict[int, date] = get_cyclists_start_date_dict()
-    if not race_prediction:
-        num_of_stages_in_race, race_total_distances, race_total_elevation_gains = get_races_totals(races_cyclist_matrix)
+    num_of_stages_in_race, race_total_distances, race_total_elevation_gains = get_races_totals(races_cyclist_matrix,
+                                                                                               race_prediction)
     for i, input_row in input_matrix[::-1].iterrows():
         event_id = input_row[id_feature]
         log(f"index: {len(input_matrix) - 1 - i}/{len(input_matrix) - 1},  id = {event_id}",
             'create_input', log_path=data_exec_path)
-        create_input_for_event(X, Y, cyclists_general, cyclists_start_date, cyclists_workouts, data_exec_path, event_id,
-                               id_feature, input_row, num_of_stages_in_race, params, race_prediction,
-                               race_total_distances, race_total_elevation_gains, stages_general, time_window)
+        X, Y = create_input_for_event(X, Y, cyclists_general, cyclists_start_date, cyclists_workouts, data_exec_path,
+                                      event_id,
+                                      id_feature, input_row, num_of_stages_in_race, params, race_prediction,
+                                      race_total_distances, race_total_elevation_gains, stages_general, time_window)
 
 
 def create_input_for_event(X: pd.DataFrame, Y: pd.DataFrame, cyclists_general: pd.DataFrame,
@@ -469,7 +479,7 @@ def create_input_for_event(X: pd.DataFrame, Y: pd.DataFrame, cyclists_general: p
                            params: dict[str: Union[str, int, tuple[str, object]]], race_prediction: bool,
                            race_total_distances: dict[int, float],
                            race_total_elevation_gains: dict[int, float], stages_general: pd.DataFrame,
-                           time_window: int) -> None:
+                           time_window: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     cyclists_participation_in_event = input_row.drop(id_feature)
     race_stages = stages_general.loc[event_id]
     race_continent, race_date, race_id, race_location = get_races_details(race_stages)
@@ -478,7 +488,7 @@ def create_input_for_event(X: pd.DataFrame, Y: pd.DataFrame, cyclists_general: p
     cyclists_continent_popularity_ranking_dict, \
     cyclists_popularity_ranking_dict = get_popularity_dicts(X, Y, cyclists_in_teams, race_continent)
     for j, cyclist_in_team in cyclists_in_teams.iterrows():
-        cyclist_id = cyclist_in_team['cyclist_id']
+        cyclist_id = cyclist_in_team[CYCLIST_ID_FEATURE]
         if cyclist_not_in_team_by_race_date(cyclist_in_team, race_date) \
                 or cyclist_event_exists_in_input(X, Y, cyclist_id, id_feature, event_id):
             continue
@@ -492,6 +502,7 @@ def create_input_for_event(X: pd.DataFrame, Y: pd.DataFrame, cyclists_general: p
                                                  race_stages,
                                                  race_total_distances, race_total_elevation_gains, stages_general,
                                                  time_window)
+    return X, Y
 
 
 def create_input_for_cyclist_in_event(X: pd.DataFrame, X_prev: pd.DataFrame, Y: pd.DataFrame, Y_prev: pd.DataFrame,
@@ -642,28 +653,28 @@ def get_cyclist_races_rate_in_team(Y_prev: pd.DataFrame, cyclist_record: dict[st
 def get_cyclist_races_number_in_last_year(Y_c: pd.DataFrame, race_date: date) -> int:
     cyclist_last_year_pred = ((Y_c['participated'] == 1) & (
             Y_c['race_date'] >= (race_date - relativedelta(years=1)))) if not Y_c.empty else None
-    return len(Y_c[cyclist_last_year_pred]['race_id'].unique()) if not Y_c.empty else 0
+    return len(Y_c[cyclist_last_year_pred][RACE_ID_FEATURE].unique()) if not Y_c.empty else 0
 
 
 def get_cyclist_total_races_number_in_continent_in_team(Y_c: pd.DataFrame, race_continent: str) -> int:
     return len(Y_c[(Y_c['participated'] == 1) & (Y_c['continent'] == race_continent)][
-                   'race_id'].unique()) if not Y_c.empty else 0
+                   RACE_ID_FEATURE].unique()) if not Y_c.empty else 0
 
 
 def get_cyclist_total_races_number_in_team(Y_c: pd.DataFrame) -> int:
-    return len(Y_c[Y_c['participated'] == 1]['race_id'].unique()) if not Y_c.empty else 0
+    return len(Y_c[Y_c['participated'] == 1][RACE_ID_FEATURE].unique()) if not Y_c.empty else 0
 
 
 def get_total_races_number_in_continent_in_team(Y_prev: pd.DataFrame, race_continent: str) -> int:
-    return len(Y_prev[Y_prev['continent'] == race_continent]['race_id'].unique()) if not Y_prev.empty else 0
+    return len(Y_prev[Y_prev['continent'] == race_continent][RACE_ID_FEATURE].unique()) if not Y_prev.empty else 0
 
 
 def get_total_race_number_in_team(Y_prev: pd.DataFrame) -> int:
-    return len(Y_prev['race_id'].unique()) if not Y_prev.empty else 0
+    return len(Y_prev[RACE_ID_FEATURE].unique()) if not Y_prev.empty else 0
 
 
 def get_cyclist_prev_Y(X_prev: pd.DataFrame, Y_prev: pd.DataFrame, cyclist_id: int) -> pd.DataFrame:
-    X_c = X_prev.loc[X_prev['cyclist_id'] == cyclist_id] if not X_prev.empty else X_prev
+    X_c = X_prev.loc[X_prev[CYCLIST_ID_FEATURE] == cyclist_id] if not X_prev.empty else X_prev
     Y_c = Y_prev.loc[X_c.index] if not Y_prev.empty else Y_prev
     return Y_c
 
@@ -683,11 +694,11 @@ def update_cyclist_weeks_since_raced_and_get_last_race_location(X: pd.DataFrame,
                                                                 cyclist_weeks_in_team: int, race_date: date) -> str:
     last_race_location = None
     if not Y.empty:
-        cyclist_races = Y[(X['cyclist_id'] == cyclist_id) & (Y['participated'] == 1)]
+        cyclist_races = Y[(X[CYCLIST_ID_FEATURE] == cyclist_id) & (Y['participated'] == 1)]
         if not cyclist_races.empty:
             last_race = \
-                Y[(X['cyclist_id'] == cyclist_id) & (Y['participated'] == 1)].sort_values('race_date',
-                                                                                          ascending=False).iloc[
+                Y[(X[CYCLIST_ID_FEATURE] == cyclist_id) & (Y['participated'] == 1)].sort_values('race_date',
+                                                                                                ascending=False).iloc[
                     0]
             last_race_date = last_race['race_date']
             last_race_location = last_race['nation']
@@ -781,7 +792,7 @@ def update_cyclist_cols_with_workout_deviation_features(cyclists_workouts_cols: 
 def get_cyclist_workout_cols(cyclist_workouts: pd.DataFrame, workouts_cols: list[str]) -> list[str]:
     cyclists_workouts_columns = set(cyclist_workouts.columns).intersection(workouts_cols)
     cyclists_workouts_columns = [c for c in cyclists_workouts_columns if
-                                 c not in ['cyclist_id'] + list(cols_to_encode)]
+                                 c not in [CYCLIST_ID_FEATURE] + list(cols_to_encode)]
     return cyclists_workouts_columns
 
 
@@ -790,7 +801,7 @@ def get_end_date_of_time_window(race_date: date) -> date:
 
 
 def get_cyclist_stats(cyclist_id: int, cyclist_stats: pd.DataFrame) -> pd.DataFrame:
-    return cyclist_stats[cyclist_stats['cyclist_id'] == cyclist_id]
+    return cyclist_stats[cyclist_stats[CYCLIST_ID_FEATURE] == cyclist_id]
 
 
 def get_cyclist_workouts_in_time_window(cyclist_id: int, cyclists_workouts: pd.DataFrame,
@@ -800,8 +811,8 @@ def get_cyclist_workouts_in_time_window(cyclist_id: int, cyclists_workouts: pd.D
         cyclist_workouts = cyclists_workouts[start_time:end_time]
     else:
         cyclist_workouts = cyclists_workouts[:end_time]
-    cyclist_workouts = cyclist_workouts[cyclist_workouts['cyclist_id'] == cyclist_id]
-    cyclist_workouts.loc[:, 'stage_id'] = cyclist_workouts['stage_id'].apply(
+    cyclist_workouts = cyclist_workouts[cyclist_workouts[CYCLIST_ID_FEATURE] == cyclist_id]
+    cyclist_workouts.loc[:, STAGE_ID_FEATURE] = cyclist_workouts[STAGE_ID_FEATURE].apply(
         lambda s: 1 if str(s) != 'nan' else 0)
     return cyclist_workouts
 
@@ -838,7 +849,7 @@ def init_dataframes_for_input_creation_iteration(X: pd.DataFrame,
     Y_prev = Y[Y['race_date'] < race_date] if not Y.empty else Y
     X_prev = X.loc[Y_prev.index] if not X.empty else X
     cyclists_in_teams = cyclists_teams.loc[cyclists_teams.index.intersection([race_date.year])]
-    cyclists_in_teams = cyclists_in_teams.set_index('cyclist_id', drop=False).sort_index()
+    cyclists_in_teams = cyclists_in_teams.set_index(CYCLIST_ID_FEATURE, drop=False).sort_index()
     return X_prev, Y_prev, cyclists_in_teams, till_race_cyclist_stats
 
 
@@ -846,7 +857,8 @@ def get_races_details(race_stages: pd.DataFrame) -> tuple[Union[str, date, int],
     race_continent = race_stages['continent'] if \
         isinstance(race_stages, pd.Series) else race_stages['continent'].iloc[0]
     race_date = race_stages['race_date'] if isinstance(race_stages, pd.Series) else race_stages['race_date'].iloc[0]
-    race_id = race_stages['race_id'] if isinstance(race_stages, pd.Series) else race_stages['race_id'].iloc[0]
+    race_id = race_stages[RACE_ID_FEATURE] if isinstance(race_stages, pd.Series) else race_stages[RACE_ID_FEATURE].iloc[
+        0]
     race_location = race_stages['nation'] if isinstance(race_stages, pd.Series) else race_stages['nation'].iloc[0]
     return race_continent, race_date, race_id, race_location
 
@@ -854,7 +866,7 @@ def get_races_details(race_stages: pd.DataFrame) -> tuple[Union[str, date, int],
 def get_cyclists_start_date_dict() -> dict[int, date]:
     global cyclists_teams
     cyclists_start_date = {}
-    for c, g in cyclists_teams.groupby('cyclist_id'):
+    for c, g in cyclists_teams.groupby(CYCLIST_ID_FEATURE):
         cyclists_start_date[c] = g.loc[g.sort_index().first_valid_index()]['start_date']
     return cyclists_start_date
 
@@ -868,7 +880,7 @@ def init_dataframes_for_create_input_func(id_feature: bool, race_prediction: boo
     races_cyclist_matrix = import_data_from_csv(races_matrix_path)
     input_matrix = races_cyclist_matrix if race_prediction else stages_cyclist_matrix
     stages_general = filtered_stages.set_index(id_feature, drop=False).sort_index()
-    cyclists_general = cyclists.set_index('cyclist_id', drop=False).sort_index()
+    cyclists_general = cyclists.set_index(CYCLIST_ID_FEATURE, drop=False).sort_index()
     cyclists_workouts = workouts.set_index('workout_date', drop=False).sort_index()
     cyclists_workouts = preprocessing_cyclists_workout(params, cyclists_workouts)
     return cyclists_general, cyclists_workouts, stages_general, races_cyclist_matrix, input_matrix
@@ -895,7 +907,7 @@ def extract_parameters_for_create_input_func(params: dict[str: Union[str, int, t
         X = pd.read_csv(f'{data_exec_path}/X_cols_raw_data.csv')
         Y = pd.read_csv(f'{data_exec_path}/Y_cols_raw_data.csv')
     time_window = params['time_window']
-    id_feature = 'race_id' if race_prediction else 'stage_id'
+    id_feature = RACE_ID_FEATURE if race_prediction else STAGE_ID_FEATURE
     return X, Y, data_exec_path, import_input, overwrite, race_prediction, \
            time_window, id_feature
 
@@ -925,10 +937,10 @@ def X_standarization(X: pd.DataFrame, data_exec_path: str
                      , params: dict[str: Union[str, int, tuple[str, object]]]) -> pd.DataFrame:
     if ('scaler' in params) and (params['scaler'] is not None) and (params['scaler'][0] != 'without'):
         scaler = params['scaler'][1]
-        X_ids = X[['cyclist_id', 'stage_id', 'race_id']]
-        X_to_fit = X.drop(columns=['cyclist_id', 'stage_id', 'race_id'])
+        X_ids = X[IDS_COLS]
+        X_to_fit = X.drop(columns=IDS_COLS)
         X = pd.DataFrame(scaler().fit_transform(X_to_fit), index=X.index, columns=X_to_fit.columns)
-        X[['cyclist_id', 'stage_id', 'race_id']] = X_ids
+        X[IDS_COLS] = X_ids
         X.to_csv(f'{data_exec_path}/X_cols_data_after_scaler.csv', index=False, header=True)
     return X
 
@@ -990,7 +1002,7 @@ def data_imputation(params: dict[str: Union[str, int, tuple[str, object]]], X: p
 
 
 def get_race_date_by_race(race_id: int) -> date:
-    race_vector = stages.loc[stages['race_id'] == race_id]
+    race_vector = stages.loc[stages[RACE_ID_FEATURE] == race_id]
     if race_vector.empty:
         raise ValueError('Race vector is missing')
     race_date = race_vector['race_date'].iloc[0]
@@ -998,7 +1010,7 @@ def get_race_date_by_race(race_id: int) -> date:
 
 
 def get_race_date_by_stage(stage_id: int) -> date:
-    race_vectors = stages.loc[stages['stage_id'] == stage_id]
+    race_vectors = stages.loc[stages[STAGE_ID_FEATURE] == stage_id]
     if race_vectors.empty:
         raise ValueError('Race Stages vectors are missing')
     race_date = race_vectors['race_date'].iloc[0]

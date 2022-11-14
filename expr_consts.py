@@ -105,6 +105,7 @@ LOG_LEVEL = 'create_input'
 LOG_DICT = {'ERROR': 0, 'INFO': 1, 'Scores': 2, 'CV': 3, 'create_input': 4}
 LEAVE_ONE_OUT = 'leave_one_out'
 YEAR_SPLIT = 'year_split'
+GROUP_SPLIT = 'group_split'
 TO_FILTER_STAGES = ['race_date', 'stage_date', 'stage_name', 'stage_number', 'race_name', 'race_link',
                     'stage_link', 'race_category', 'pcs_city_start', 'pcs_city_finish', 'stage_points_scale',
                     'parcours_type', 'race_year', 'nation', 'start_time', 'stage_type', 'difficulty_level',
@@ -141,4 +142,5 @@ TP_AVG_COLS = ['hr_min', 'hr_max', 'hr_avg'
                'power_max', 'temp_min', 'temp_avg', 'temp_max', 'cadence_avg', 'cadence_max',
                'elevation_min', 'elevation_avg', 'elevation_max']
 TP_LAST_COLS = ['workout_datetime']
-
+RACE_ID_FEATURE,STAGE_ID_FEATURE,CYCLIST_ID_FEATURE='race_id','stage_id','cyclist_id'
+IDS_COLS = [RACE_ID_FEATURE,STAGE_ID_FEATURE,CYCLIST_ID_FEATURE]
