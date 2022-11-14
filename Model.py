@@ -23,7 +23,7 @@ def grouped_time_series_split(df: pd.DataFrame, group_id: int, cv_num_of_splits:
     if cv_num_of_splits is None:
         cv_num_of_splits = number_of_groups
     train_indices, test_indices = [], []
-    # the num of stages in test not changes in TimeSeriesSplit so I did the same..
+    # the num of stages in test does not changes in TimeSeriesSplit so I did the same..
     if cv_num_of_splits == 1:
         num_of_groups_in_test = int(number_of_groups / 5)
     else:
