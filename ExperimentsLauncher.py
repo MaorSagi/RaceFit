@@ -109,7 +109,8 @@ def evaluate_baseline(baseline_name: str, iteration: int, X_test: pd.DataFrame) 
     for race_id, g in grouped_data_by_races:
         top_cyclists = get_top_cyclists(baseline_name, g, race_id, races_columns, races_cyclists_test_matrix)
 
-        race_cyclists[race_id] = set([str(e) for e in X_test[X_test[RACE_ID_FEATURE] == race_id][CYCLIST_ID_FEATURE].values])
+        race_cyclists[race_id] = set(
+            [str(e) for e in X_test[X_test[RACE_ID_FEATURE] == race_id][CYCLIST_ID_FEATURE].values])
         cyclists_in_team = race_cyclists[race_id]
         set_prediction_matrix(i, race_id, races_columns, races_cyclists_pred_matrix, top_cyclists)
         set_prediction_proba_matrix(baseline_name, cyclists_in_team, g, i, race_id, races_columns,
@@ -118,7 +119,7 @@ def evaluate_baseline(baseline_name: str, iteration: int, X_test: pd.DataFrame) 
         total_scores = evaluate_results(params, iteration, race_cyclists, races_columns, races_cyclists_pred_matrix,
                                         races_cyclists_soft_pred_matrix, races_cyclists_test_matrix,
                                         prediction_matrix_path, log_path=get_data_path(params))
-    set_metrics_array_to_str(total_scores,baseline_name)
+    set_metrics_array_to_str(total_scores, baseline_name)
 
     return total_scores
 
@@ -164,13 +165,11 @@ def get_top_cyclists(baseline_feature: str, race_group: pd.DataFrame, race_id: i
     return top_cyclists
 
 
-
-
-
 def create_prediction_matrices(X_test: pd.DataFrame, races_cyclist_matrix: pd.DataFrame) \
         -> tuple[Union[list[str, ...], pd.DataFrame], ...]:
     races_cyclists_cpy = races_cyclist_matrix.copy()
-    races_cyclists_test_matrix = races_cyclists_cpy.loc[races_cyclists_cpy[RACE_ID_FEATURE].isin(X_test[RACE_ID_FEATURE])]
+    races_cyclists_test_matrix = races_cyclists_cpy.loc[
+        races_cyclists_cpy[RACE_ID_FEATURE].isin(X_test[RACE_ID_FEATURE])]
     races_cyclists_test_matrix = races_cyclists_test_matrix.reset_index(drop=True)
     missing_cyclists_in_test = list(
         filter(lambda c: str(c) not in races_cyclists_test_matrix.columns, X_test[CYCLIST_ID_FEATURE].unique()))
@@ -263,10 +262,10 @@ def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clusterin
     if create_stages_cyclists_matrix:
         create_boolean_matrix()
     X_raw_data_path = f'{raw_data_exec_path}/X_cols_raw_data.csv'
-    if create_input and is_file_does_not_exist_or_should_be_changed(X_raw_data_path, overwrite):
+    if create_input and is_file_does_not_exist_or_should_be_changed(overwrite, X_raw_data_path):
         create_input_data(params)
     X_data_path = f'{data_exec_path}/X_cols_data.csv'
-    if preprocessing and is_file_does_not_exist_or_should_be_changed(X_data_path, overwrite):
+    if preprocessing and is_file_does_not_exist_or_should_be_changed(overwrite, X_data_path):
         Y_raw_data_path = f'{raw_data_exec_path}/Y_cols_raw_data.csv'
         Y_data_path = f'{data_exec_path}/Y_cols_data.csv'
         X, Y = import_data_from_csv(X_raw_data_path), import_data_from_csv(Y_raw_data_path)
@@ -278,7 +277,7 @@ def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clusterin
         baseline_results_path = f'{data_exec_path}/{BASELINES_FILE_NAME}'
         evaluate_baselines_functions = [feature_to_eval_function_dict[b] for b in evaluate_baselines]
         expr_loop_args = (baseline_results_path, data_exec_path, "Baseline", evaluate_baselines_functions)
-        activate_experiment_loop(*expr_loop_args, baseline_results_path, overwrite)
+        activate_experiment_loop(baseline_results_path, overwrite, *expr_loop_args)
     if clustering:
         fit_clustering_algorithm("K-Means", clustering_algorithms["K-Means"], k_clusters)
     if train_eval or train_model or eval_model:
@@ -287,13 +286,13 @@ def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clusterin
         evaluate_funcs = [evaluate] if (train_eval or eval_model) else None
         train_func = train if (train_eval or train_model) else None
         expr_loop_args = (model_results_path, trained_model_path, "Model", evaluate_funcs, train_func)
-        activate_experiment_loop(*expr_loop_args, model_results_path, overwrite)
+        activate_experiment_loop(model_results_path, overwrite, *expr_loop_args)
 
 
-def activate_experiment_loop(expr_loop_args: tuple[Union[str, Callable], ...], model_results_path: str,
-                             overwrite: bool) -> None:
-    if is_file_does_not_exist_or_should_be_changed(model_results_path, overwrite):
-        if is_file_exists_and_should_be_changed(model_results_path, overwrite):
+def activate_experiment_loop(model_results_path: str,
+                             overwrite: bool, *expr_loop_args: tuple[Union[str, Callable], ...]) -> None:
+    if is_file_does_not_exist_or_should_be_changed(overwrite, model_results_path):
+        if is_file_exists_and_should_be_changed(overwrite, model_results_path):
             os.remove(model_results_path)
         experiment_loop(*expr_loop_args)
 

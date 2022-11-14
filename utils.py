@@ -271,6 +271,7 @@ def eval_roc(fpr_new_points: list[float, ...], ground_truth: pd.Series, row_soft
     interp = interp1d(fpr, tpr)
     tpr_new_points = interp(fpr_new_points)
     total_scores['roc_curve'] += tpr_new_points
+    return total_scores
 
 
 def eval_auc(ground_truth: pd.Series, precision_new_points: list[float, ...], recall_new_points: list[float, ...],
@@ -293,7 +294,7 @@ def append_predictions_to_pred_file(candidates: set[int, ...], idx: int, iterati
     ground_truth = races_cyclists_test_matrix.loc[idx][
         races_columns.intersection(candidates)].apply(float).sort_index()
     prediction_dict = {'PROB': row_soft, 'PRED': row_pred, 'TRUE': ground_truth}
-    for record_type, row in prediction_dict:
+    for record_type, row in prediction_dict.items():
         append_row_to_prediction_matrix(params, record_type, iteration, row, races_columns, prediction_matrix_path)
     return ground_truth, row_pred, row_soft
 
