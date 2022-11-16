@@ -100,12 +100,17 @@ STRAVA_CYCLIST_STATS_COLS = ['total_races_number_in_team', 'cyclist_total_races_
 
 RAW_DATA_COLS = ['team_name', 'workouts_source', 'time_window', 'imputer_workouts']
 DATA_COLS = ['col_threshold', 'imputer']  # 'row_threshold','scaler', 'aggregation_function'
-MODELS_COLS = ['score_model', 'model', 'result_consideration']  # , 'feature_isolation'
+MODEL, SCORE_MODEL = 'model', 'score_model'
+MODELS_COLS = ['model','score_model','result_consideration']  # , 'feature_isolation'
 LOG_LEVEL = 'create_input'
 LOG_DICT = {'ERROR': 0, 'INFO': 1, 'Scores': 2, 'CV': 3, 'create_input': 4}
 LEAVE_ONE_OUT = 'leave_one_out'
 YEAR_SPLIT = 'year_split'
 GROUP_SPLIT = 'group_split'
+K_MEANS = "K-Means"
+CLUSTERING_ALG_NAME = K_MEANS
+CLUSTERS_FEATURES = ['distance', 'elevation_gain']
+
 TO_FILTER_STAGES = ['race_date', 'stage_date', 'stage_name', 'stage_number', 'race_name', 'race_link',
                     'stage_link', 'race_category', 'pcs_city_start', 'pcs_city_finish', 'stage_points_scale',
                     'parcours_type', 'race_year', 'nation', 'start_time', 'stage_type', 'difficulty_level',
@@ -142,5 +147,5 @@ TP_AVG_COLS = ['hr_min', 'hr_max', 'hr_avg'
                'power_max', 'temp_min', 'temp_avg', 'temp_max', 'cadence_avg', 'cadence_max',
                'elevation_min', 'elevation_avg', 'elevation_max']
 TP_LAST_COLS = ['workout_datetime']
-RACE_ID_FEATURE,STAGE_ID_FEATURE,CYCLIST_ID_FEATURE='race_id','stage_id','cyclist_id'
-IDS_COLS = [RACE_ID_FEATURE,STAGE_ID_FEATURE,CYCLIST_ID_FEATURE]
+RACE_ID_FEATURE, STAGE_ID_FEATURE, CYCLIST_ID_FEATURE = 'race_id', 'stage_id', 'cyclist_id'
+IDS_COLS = [RACE_ID_FEATURE, STAGE_ID_FEATURE, CYCLIST_ID_FEATURE]

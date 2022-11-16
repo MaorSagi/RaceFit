@@ -1,7 +1,6 @@
-import json
 import ast
 import pickle
-
+import joblib
 import pandas as pd
 
 from utils import *
@@ -111,28 +110,73 @@ def get_times_to_multiply_the_record(cutoffs: list[int], ranking: int, times_to_
     return times_to_mul
 
 
+def transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, params, stage_types_total):
+    X, y = [], []
+    for (race, cyclist), cyclist_in_race in X_s.groupby([RACE_ID_FEATURE, CYCLIST_ID_FEATURE]):
+        participated_in_race = int(all(y_s.loc[cyclist_in_race.index]))
+        y.append(participated_in_race)
+        input_row = {}
+        for stage_type in range(stage_types_total):
+            stages_in_cluster = cyclist_in_race[cyclist_in_race['cluster'] == stage_type]
+            input_row[f'days_in_stage_type_{stage_type}'] = len(stages_in_cluster)
+            cyclist_stage_input = stages_in_cluster.copy()
+            cyclist_stage_input = drop_unnecessary_features(cyclist_stage_input, params)
+            if len(stages_in_cluster) > 0:
+                participation_pred = np.mean([p[1] for p in cyclist_stage_predict(cyclist_stage_input)])
+            else:
+                participation_pred = 0
+            input_row[f'mean_score_of_stage_type_{stage_type}'] = participation_pred
+        X.append(input_row)
+    X_t = pd.DataFrame(X)
+    y_t = pd.Series(y)
+    return X_t, y_t
+
+
+def sort_transform_data(X_s, y_s, cyclist_stage_predict, params):
+    k_clusters = params['k_clusters']
+    c_model = load_clusters(k_clusters)
+    X_s['cluster'] = c_model.predict(X_s[CLUSTERS_FEATURES])
+    X_s, y_s = transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, params, k_clusters)
+    return X_s, y_s
+
+
 @time_wrapper
 def train(iteration: int, params: dict[str: Union[str, int, tuple[str, object]]],
           cyclists: pd.DataFrame,
           stages: pd.DataFrame) -> None:
     trained_model_path = get_models_path(params)
-    X, y, features_to_remove, model_name, overwrite, result_consideration = extract_training_parameters(
+    X, y, model_name, overwrite, result_consideration = extract_training_parameters(
         cyclists, params, stages)
+    X, y, X_s, y_s = handle_score_model_split(params, X, y)
+
+    fit_model(X, y, iteration, model_name, overwrite, params, result_consideration,
+              trained_model_path,
+              MODEL)
+    train_second_level_model = X_s is not None
+    if train_second_level_model:
+        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, trained_model_path, MODEL)
+        X_s, y_s = sort_transform_data(X_s, y_s, cyclist_stage_predict, params)
+        fit_model(X_s, y_s, iteration, model_name, overwrite, params, result_consideration,
+                  trained_model_path,
+                  SCORE_MODEL)
+
+
+def fit_model(X, y, iteration, model_name, overwrite, params, result_consideration,
+              trained_model_path,
+              model_type: Literal[MODEL, SCORE_MODEL]) -> None:
     try:
-        model_filename = f"{iteration + 1}_{model_name}.pkl"
+        model_filename = f"{model_type}_{iteration + 1}_{model_name}.pkl"
         model_full_path = f'{trained_model_path}/{model_filename}'
         if is_file_exists_and_should_not_be_changed(overwrite, model_full_path):
             return
-        model = params['model'][1]['constructor']()
+        model = params[model_type][1]['constructor']()
         if X.empty:
             return
-        X_new, y_new = X.copy(), y.copy()
+        X_new = drop_unnecessary_features(X, params)
         if result_consideration:
-            X_new, y_new = duplicate_high_results_records(X_new, y_new, result_consideration)
-        features_to_remove = features_to_remove + IDS_COLS
-        X_new = X_new.drop(columns=set(X_new.columns).intersection(features_to_remove))
-        train_func = params['model'][1]['train']
-        train_func(model, X_new, y_new)
+            X_new, y = duplicate_high_results_records(X_new, y, result_consideration)
+        train_func = params[model_type][1]['train']
+        train_func(model, X_new, y)
         pickle.dump(model, open(model_full_path, 'wb'))
     except Exception as err:
         model_exec_path = get_models_path(params)
@@ -140,26 +184,37 @@ def train(iteration: int, params: dict[str: Union[str, int, tuple[str, object]]]
             log_path=model_exec_path)
 
 
+def drop_unnecessary_features(X: pd.DataFrame,
+                              params: dict[str: Union[str, int, tuple[str, object]]]) -> pd.DataFrame:
+    X_new = X.copy()
+    features_to_remove = get_features_to_remove(X_new, params) + IDS_COLS + ['cluster']
+    X_new = X_new.drop(columns=set(X_new.columns).intersection(features_to_remove))
+    return X_new
+
+
+def handle_score_model_split(params, X, y) -> tuple[Union[float, pd.DataFrame], ...]:
+    X_s, y_s = None, None
+    if params['score_model']:
+        if params['score_model_split'] is None:
+            raise ValueError("Invalid input: for score model option the user should specify the score model split.")
+        split_fraction = params['score_model_split']
+        races_ids = X[RACE_ID_FEATURE].drop_duplicates()
+        sampled_races_ids = races_ids.sample(frac=split_fraction, random_state=1)
+        X_s = X[X[RACE_ID_FEATURE].isin(sampled_races_ids.values)]
+        y_s = y.loc[X_s.index]
+        X = X[~X[RACE_ID_FEATURE].isin(sampled_races_ids.values)]
+        y = y.loc[X.index]
+    return X, y, X_s, y_s
+
+
 def extract_training_parameters(cyclists: pd.DataFrame, params: dict[str: Union[str, int, tuple[str, object]]],
                                 stages: pd.DataFrame) -> tuple[Union[pd.DataFrame, list[str, ...], str, bool], ...]:
-    from DataManager import cyclist_stats_cols
     overwrite = params['overwrite']
     result_consideration = params['result_consideration']
     model_name = params['model'][0]
     y = stages['participated']
     X = pd.concat([cyclists, stages], axis=1).drop(columns='participated')
-    feature_isolation = params['feature_isolation']
-    if feature_isolation is not None:
-        features_to_isolate = set(X.columns).intersection(cyclist_stats_cols + list(['race_total_distance',
-                                                                                     'race_total_elevation_gain']))
-        if feature_isolation == 'without_new_features':
-            features_to_remove = features_to_isolate
-        else:
-            features_to_remove = list(filter(lambda f: f != feature_isolation, features_to_isolate))
-    else:
-        features_to_remove = []
-    # features_to_remove = ['distance_from_last_workout', 'distance_from_last_race', 'cyclist_weeks_since_last_race']
-    return X, y, features_to_remove, model_name, overwrite, result_consideration
+    return X, y, model_name, overwrite, result_consideration
 
 
 def fill_pred_matrix(X_test, y_test, y_prob, pred_matrix, group_feature):
@@ -199,7 +254,7 @@ def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
     cyclists_columns = races_cyclists_test_matrix.columns[1:]
 
     X_test_as_input = drop_unnecessary_features(X_test, params)
-    y_prob = model_predict(X_test_as_input, iteration, model_name, params, trained_model_path)
+    y_prob = model_predict(X_test_as_input, iteration, model_name, params, trained_model_path, MODEL)
     races_cyclists_soft_pred_matrix, stages_cyclists_pred_matrix = fill_pred_matrices(X_test, params, race_prediction,
                                                                                       races_cyclists_soft_pred_matrix,
                                                                                       stages_cyclists_pred_matrix,
@@ -322,25 +377,19 @@ def fill_pred_matrices(X_test, params, race_prediction, races_cyclists_soft_pred
 
 
 def model_predict(X_test_as_input: pd.DataFrame, iteration: int, model_name: str,
-                  params: dict[str: Union[str, int, tuple[str, object]]], trained_model_path: str) -> np.array:
+                  params: dict[str: Union[str, int, tuple[str, object]]], trained_model_path: str,
+                  model_type: Literal[MODEL, SCORE_MODEL]) -> np.array:
     y_prob = None
     try:
-        if os.path.exists(f'{trained_model_path}/{iteration}_{model_name}.pkl'):
-            model = pickle.load(open(f'{trained_model_path}/{iteration}_{model_name}.pkl', 'rb'))
+        model_filename = f"{model_type}_{iteration + 1}_{model_name}.pkl"
+        model_full_path = f'{trained_model_path}/{model_filename}'
+        if os.path.exists(model_full_path):
+            model = pickle.load(open(model_full_path, 'rb'))
             y_prob = params['model'][1]['predict_proba'](model, X_test_as_input)
     except Exception as err:
         log(f"Predict stage value. Error: {err} Params: {get_params_str(params)}", "ERROR",
             log_path=trained_model_path)
     return y_prob
-
-
-def drop_unnecessary_features(X_test: pd.DataFrame,
-                              params: dict[str: Union[str, int, tuple[str, object]]]) -> pd.DataFrame:
-    X_test_as_input = X_test.drop(columns=IDS_COLS)
-    features_to_remove = get_features_to_remove(X_test_as_input, params)
-    features_to_remove_in_input = set(X_test_as_input.columns).intersection(features_to_remove)
-    X_test_as_input = X_test_as_input.drop(columns=features_to_remove_in_input)
-    return X_test_as_input
 
 
 def get_features_to_remove(X_test_as_input: pd.DataFrame, params: dict[str: Union[str, int, tuple[str, object]]]) -> \
@@ -446,12 +495,15 @@ def append_results_from_files(exec_dir_path: str) -> None:
                             append_model_results(data_files, exec_dir_path, raw_data_dir, data_dir, model_dir)
 
 
-def fit_clustering_algorithm(clustering_algorithm_name: str, clustering_algorithm: Callable, k_clusters: int) -> None:
+def fit_clustering_algorithm(clustering_algorithm: Callable, k_clusters: int) -> None:
     from DataManager import filtered_stages_till_2016
-    import joblib
     non_null_pred = (~filtered_stages_till_2016['distance'].isna()) & (
         ~filtered_stages_till_2016['elevation_gain'].isna())
     filtered_stages = filtered_stages_till_2016[non_null_pred]
-    kmeans = clustering_algorithm(n_clusters=k_clusters, random_state=0)
-    kmeans.fit_predict(filtered_stages[['distance', 'elevation_gain']])
-    joblib.dump(kmeans, f'{EXEC_PATH}/{clustering_algorithm_name}_model_{k_clusters}.joblib')
+    c_model = clustering_algorithm(n_clusters=k_clusters, random_state=0)
+    c_model.fit_predict(filtered_stages[CLUSTERS_FEATURES])
+    joblib.dump(c_model, f'{EXEC_PATH}/{CLUSTERING_ALG_NAME}_model_{k_clusters}.joblib')
+
+
+def load_clusters(k_clusters: int):
+    return joblib.load(f'{EXEC_PATH}/{CLUSTERING_ALG_NAME}_model_{k_clusters}.joblib')

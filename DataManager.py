@@ -1,8 +1,5 @@
 import os.path
 from typing import List, Dict
-
-import pandas as pd
-
 from utils import *
 from expr_consts import *
 from datetime import datetime, timedelta, date

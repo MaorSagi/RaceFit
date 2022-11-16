@@ -24,7 +24,6 @@ from sklearn.svm import SVC
 from sklearn.cluster import KMeans
 
 params: dict[str: Union[str, int, tuple[str, object]]]  # Model hyper-parameters
-
 clustering_algorithms = {"K-Means": KMeans}
 models = {'AdaBoost': {'constructor': lambda: AdaBoostClassifier(),
                        'train': AdaBoostClassifier.fit,
@@ -279,7 +278,7 @@ def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clusterin
         expr_loop_args = (baseline_results_path, data_exec_path, "Baseline", evaluate_baselines_functions)
         activate_experiment_loop(baseline_results_path, overwrite, *expr_loop_args)
     if clustering:
-        fit_clustering_algorithm("K-Means", clustering_algorithms["K-Means"], k_clusters)
+        fit_clustering_algorithm(clustering_algorithms[CLUSTERING_ALG_NAME],k_clusters)
     if train_eval or train_model or eval_model:
         trained_model_path = get_models_path(params)
         model_results_path = f'{trained_model_path}/{MODEL_RESULTS_FILE_NAME}'
@@ -347,7 +346,7 @@ def init_exec_parser() -> ArgumentParser:
     parser.add_argument('-sim', '--similarity', type=str)
     parser.add_argument('-m', '--model', type=str)
     parser.add_argument('-sm', '--score-model', type=str)
-    parser.add_argument('-sms', '--score-model-split', type=int)
+    parser.add_argument('-sms', '--score-model-split', type=float)
     parser.add_argument('-kc', '--k-clusters', type=int)
     parser.add_argument('-k', '--kfold', type=int)
     parser.add_argument('-j', '--job-id', type=int)
@@ -383,6 +382,7 @@ def init_params_from_parser(parser: ArgumentParser) -> None:
                       args.aggregation_function]) if args.aggregation_function else None,
                   similarity=(args.similarity, similarity_functions[args.similarity]) if args.similarity else None,
                   model=(args.model, models[args.model]) if args.model else None,
+                  score_model=(args.score_model, models[args.score_model]) if args.score_model else None,
                   kfold=args.kfold,
                   job_id=args.job_id,
                   create_matrix='create_matrix' in str(args.action),
@@ -405,7 +405,6 @@ def init_params_from_parser(parser: ArgumentParser) -> None:
                   only_important=args.only_important if args.only_important else None,
                   race_prediction=args.race_prediction if args.race_prediction else None,
                   result_consideration=args.result_consideration if args.result_consideration else None,
-                  score_model=args.score_model if args.score_model else None,
                   score_model_split=args.score_model_split if args.score_model_split else None,
                   k_clusters=args.k_clusters if args.k_clusters else None,
                   )
