@@ -6,6 +6,7 @@ params = {
     'imputer': 'Imputer Type', 'scaler': 'Scaler Type',
     'time_window': 'Time Window',
     'model': 'Model',
+    'score_model': 'Score Model',
     # 'aggregation_function': 'Aggregation Function',
     # 'similarity': "Similarity Function",
     # "popularity_weight":"Popularity Weight",
@@ -346,7 +347,7 @@ ONE_DAY_RACES, MAJOR_TOURS, GRAND_TOURS = "One Day Races", "Major Tours", "Grand
 
 curve_factor_x = 'recalls'  # 'precision_recall_curve'
 curve_factor_y = 'precisions'
-EXEC_NAME = "Oct 30 - rewrite exprs"  # "Sep 6-rerun - J paper results"#
+EXEC_NAME = "Nov 7 - refactoring tests"  # "Sep 6-rerun - J paper results"#
 EXEC_BASE_PATH = f"./executions/{EXEC_NAME}"  # f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"
 WORKOUTS_SRC = 'STRAVA'  # 'STRAVA'
 agg_func = 'SmartAgg'
@@ -387,7 +388,8 @@ global_best_params_dict = {
     'imputer_workouts': 'without',
     # 'result_consideration':'[4,2,1]',
     'time_window': 5,
-    'model': 'CatBoost'
+    'model': 'CatBoost',
+    'score_model':'CatBoost',
 }
 
 team_best_params_dict = {'AG2R Citroën Team': {'col_threshold': '0.45'},
@@ -407,6 +409,7 @@ PLOT_ONLY_BEST = False
 params_to_plot = {'imputer': 'Imputer Type',
                   # 'imputer_workouts': 'Workouts Imputer Type',
                   'model': 'Model',
+                  'score_model': 'Score Model',
                   # 'result_consideration':'Results Consideration',
                   # 'row_threshold': 'Row Threshold',
                   # 'col_threshold': 'Column Threshold',

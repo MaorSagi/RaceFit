@@ -117,6 +117,8 @@ def transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, param
         y.append(participated_in_race)
         input_row = {}
         for stage_type in range(stage_types_total):
+            input_row[RACE_ID_FEATURE]=race
+            input_row[CYCLIST_ID_FEATURE]=cyclist
             stages_in_cluster = cyclist_in_race[cyclist_in_race['cluster'] == stage_type]
             input_row[f'days_in_stage_type_{stage_type}'] = len(stages_in_cluster)
             cyclist_stage_input = stages_in_cluster.copy()
@@ -132,10 +134,12 @@ def transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, param
     return X_t, y_t
 
 
-def sort_transform_data(X_s, y_s, cyclist_stage_predict, params):
+def sort_transform_data(X, y, cyclist_stage_predict, params):
+    X_s,y_s = X.copy(),y.copy()
     k_clusters = params['k_clusters']
     c_model = load_clusters(k_clusters)
-    X_s['cluster'] = c_model.predict(X_s[CLUSTERS_FEATURES])
+    samples_clusters=c_model.predict(X_s[CLUSTERS_FEATURES])
+    X_s['cluster'] = pd.Series(samples_clusters)
     X_s, y_s = transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, params, k_clusters)
     return X_s, y_s
 
@@ -247,15 +251,23 @@ def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
     stages_cyclists_pred_matrix, _ = init_pred_matrix(X_test, stages_cyclist_matrix, STAGE_ID_FEATURE, race_prediction)
     races_cyclists_pred_matrix, races_cyclists_test_matrix = init_pred_matrix(X_test, races_cyclist_matrix,
                                                                               RACE_ID_FEATURE)
-    # TODO: check if needed
     races_cyclists_pred_matrix = races_cyclists_pred_matrix.fillna(0)
     races_cyclists_soft_pred_matrix = races_cyclists_pred_matrix.copy()
-    # TODO: check if works as expected
     cyclists_columns = races_cyclists_test_matrix.columns[1:]
 
-    X_test_as_input = drop_unnecessary_features(X_test, params)
-    y_prob = model_predict(X_test_as_input, iteration, model_name, params, trained_model_path, MODEL)
-    races_cyclists_soft_pred_matrix, stages_cyclists_pred_matrix = fill_pred_matrices(X_test, params, race_prediction,
+    second_level_model_off = not params['score_model']
+    if second_level_model_off:
+        X_test_as_input = drop_unnecessary_features(X_test, params)
+        y_prob = model_predict(X_test_as_input, iteration, model_name, params, trained_model_path, MODEL)
+    else:
+        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, trained_model_path, MODEL)
+        X_s, y_s = sort_transform_data(X_test, y_test, cyclist_stage_predict, params)
+        y_prob = model_predict(X_s, iteration, model_name, params, trained_model_path, SCORE_MODEL)
+        race_prediction = True
+        X_test, y_test = X_s, y_s
+
+    races_cyclists_soft_pred_matrix, stages_cyclists_pred_matrix = fill_pred_matrices(X_test, params,
+                                                                                      race_prediction,
                                                                                       races_cyclists_soft_pred_matrix,
                                                                                       stages_cyclists_pred_matrix,
                                                                                       y_prob, y_test)
@@ -385,7 +397,7 @@ def model_predict(X_test_as_input: pd.DataFrame, iteration: int, model_name: str
         model_full_path = f'{trained_model_path}/{model_filename}'
         if os.path.exists(model_full_path):
             model = pickle.load(open(model_full_path, 'rb'))
-            y_prob = params['model'][1]['predict_proba'](model, X_test_as_input)
+            y_prob = params[model_type][1]['predict_proba'](model, X_test_as_input)
     except Exception as err:
         log(f"Predict stage value. Error: {err} Params: {get_params_str(params)}", "ERROR",
             log_path=trained_model_path)
