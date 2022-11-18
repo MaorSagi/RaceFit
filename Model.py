@@ -239,7 +239,7 @@ def fill_pred_matrix(X_test, y_test, y_prob, pred_matrix, group_feature):
                             0]
                     pred_idx = y_test.index.get_loc(i)
                     pred_matrix.loc[event_idx, cyclist_column] = y_prob[pred_idx][1]
-        return pred_matrix
+    return pred_matrix
 
 
 @time_wrapper
@@ -301,8 +301,8 @@ def evaluate_model_predictions(X_test: pd.DataFrame, cyclists_columns: list[int,
 
         top_cyclists = get_top_cyclists(cyclists_participated_in_race_predict, cyclists_to_choose, y_prob)
 
-        set_prediction_matrix(cyclists_columns, i, race_id, races_cyclists_pred_matrix, top_cyclists)
-        set_prediction_proba_matrix(cyclists_columns, i, race_id, races_cyclists_soft_pred_matrix, y_prob, top_cyclists,
+        races_cyclists_pred_matrix = set_prediction_matrix(cyclists_columns, i, race_id, races_cyclists_pred_matrix, top_cyclists)
+        races_cyclists_soft_pred_matrix = set_prediction_proba_matrix(cyclists_columns, i, race_id, races_cyclists_soft_pred_matrix, y_prob, top_cyclists,
                                     cyclists_in_team, cyclists_participated_in_race_predict)
 
         i += 1
@@ -319,19 +319,22 @@ def set_prediction_proba_matrix(cyclists_columns: list[str, ...], race_idx: int,
                                 top_cyclists: list[int, ...],
                                 cyclists_in_team: set[int, ...],
                                 cyclists_participated_in_race_predict: pd.DataFrame) -> None:
-    races_cyclists_soft_pred_matrix.at[race_idx, RACE_ID_FEATURE] = race_id
-    races_cyclists_soft_pred_matrix.loc[race_idx, cyclists_columns[1:]] = 0
+    soft_pred_matrix = races_cyclists_soft_pred_matrix.copy()
+    soft_pred_matrix.loc[race_idx, RACE_ID_FEATURE] = race_id
+    soft_pred_matrix.loc[race_idx, cyclists_columns[1:]] = 0
     if y_prob is None:
-        races_cyclists_soft_pred_matrix.loc[race_idx, top_cyclists] = 1
+        soft_pred_matrix.loc[race_idx, top_cyclists] = 1
     for c in cyclists_in_team:
-        races_cyclists_soft_pred_matrix.at[race_idx, c] = cyclists_participated_in_race_predict[c]
+        soft_pred_matrix.loc[race_idx, c] = cyclists_participated_in_race_predict[c]
+    return soft_pred_matrix
 
 
 def set_prediction_matrix(cyclists_columns: list[str], race_idx: int, race_id: int,
                           races_cyclists_pred_matrix: pd.DataFrame, top_cyclists: list[str]) -> None:
-    races_cyclists_pred_matrix.at[race_idx, RACE_ID_FEATURE] = race_id
+    races_cyclists_pred_matrix.loc[race_idx, RACE_ID_FEATURE] = race_id
     races_cyclists_pred_matrix.loc[race_idx, cyclists_columns[1:]] = 0
     races_cyclists_pred_matrix.loc[race_idx, top_cyclists] = 1
+    return races_cyclists_pred_matrix
 
 
 def get_race_cyclists_in_input(X_test: pd.DataFrame, race_id: int) -> set[str, ...]:

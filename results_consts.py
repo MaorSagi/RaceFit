@@ -347,7 +347,7 @@ ONE_DAY_RACES, MAJOR_TOURS, GRAND_TOURS = "One Day Races", "Major Tours", "Grand
 
 curve_factor_x = 'recalls'  # 'precision_recall_curve'
 curve_factor_y = 'precisions'
-EXEC_NAME = "Nov 7 - refactoring tests"  # "Sep 6-rerun - J paper results"#
+EXEC_NAME = "Nov 17 - after refactoring"  # "Sep 6-rerun - J paper results"#
 EXEC_BASE_PATH = f"./executions/{EXEC_NAME}"  # f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"
 WORKOUTS_SRC = 'STRAVA'  # 'STRAVA'
 agg_func = 'SmartAgg'

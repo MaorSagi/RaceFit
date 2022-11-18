@@ -1,6 +1,6 @@
 APPEND_RESULTS, RUN_EXPERIMENTS = "append_results", "run_experiments"
 EXPR_TASK = RUN_EXPERIMENTS
-EXEC_NAME = 'Nov 7 - refactoring tests'
+EXEC_NAME = 'Nov 17 - after refactoring'
 EXECS_DIR_PATH = 'executions'
 EXEC_PATH = f'{EXECS_DIR_PATH}/{EXEC_NAME}'
 ALLOCATION_MATRICES_PATH = 'allocation_matrices'
