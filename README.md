@@ -24,7 +24,7 @@ The database of the cyclists, races, and teams can not be publish currently, par
 
 These are the actions (tasks) the system allows:
 
-- Create teams cyclist participation in race and in stage
+- Create teams cyclist participation in race and in stage matrices
 - Create examples and labels input from raw data
 - Preprocessing 
 - Evaluate popularity baselines
