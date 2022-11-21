@@ -417,7 +417,7 @@ params_to_plot = {'imputer': 'Imputer Type',
                   }
 imputation_labels = {'without': 'Without imputation', 'SimpleImputer': 'With imputation - SimpleImputer',
                      'KNNImputer': 'With imputation - KNNImputer'}  # {'without': 'Without imputation', 'SimpleImputer': 'With imputation'}
-model_labels = {'DecisionTree': 'Decision Tree', 'CatBoost': 'CatBoost', 'Logistic': 'Logistic Regression'}
+model_labels = {'DecisionTree': 'Decision Tree', 'CatBoost': 'CatBoost', 'Logistic': 'Logistic Regression','without':'Without'}
 models_to_plot = ['DecisionTree', 'CatBoost', 'Logistic']
 # BEST_RUN_MODEL_DIR = f"['{best_params_dict['model']}', None]"
 

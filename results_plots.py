@@ -18,7 +18,8 @@ os.environ["PATH"] += os.pathsep + 'C:/Program Files/Graphviz/bin'
 stages = pd.read_csv('./db/filtered_stages.csv')
 races_number_of_days = {k: v['stage_id'] for k, v in
                         stages[['race_id', 'stage_id']].groupby('race_id').count().iterrows()}
-races_days_ranges = {ONE_DAY_RACES: range(1,2), MAJOR_TOURS: range(2, 13), GRAND_TOURS: range(13, 22)}
+races_days_ranges = {ONE_DAY_RACES: range(1, 2), MAJOR_TOURS: range(2, 13), GRAND_TOURS: range(13, 22)}
+
 
 def plot_auc_interaction_results(curve_factor_x, curve_factor_y, param_1, param_2, model_results):
     for team in model_results['team_name'].unique():
@@ -82,7 +83,7 @@ def plot_auc_results(curve_factor_x, curve_factor_y, model_results, baseline_res
         # if 'model' == param:
         plt.xticks(fontsize=9, rotation=-45)
         # plt.xlim(0, 1+EXTRA_LIM_GAP)
-        plt.ylim(0, 1+EXTRA_LIM_GAP)
+        plt.ylim(0, 1 + EXTRA_LIM_GAP)
         # plt.xticks(fontsize=9)
         ax.set_ylabel("AUC-PR")
         plt.title(f'AUCPR - {params[param]}')
@@ -228,8 +229,10 @@ def plot_pr_results(curve_factor_x, curve_factor_y, model_results, baseline_resu
         if (SINGLE_TEAM is not None) and SINGLE_TEAM != team:
             continue
         if SINGLE_RACE_TYPE:
-            model_relevant_races_pred = model_results['race_id'].map(races_number_of_days).isin(races_days_ranges[SINGLE_RACE_TYPE])
-            baselines_relevant_races_pred = baseline_results['race_id'].map(races_number_of_days).isin(races_days_ranges[SINGLE_RACE_TYPE])
+            model_relevant_races_pred = model_results['race_id'].map(races_number_of_days).isin(
+                races_days_ranges[SINGLE_RACE_TYPE])
+            baselines_relevant_races_pred = baseline_results['race_id'].map(races_number_of_days).isin(
+                races_days_ranges[SINGLE_RACE_TYPE])
             model_results = model_results.loc[model_relevant_races_pred]
             baseline_results = baseline_results.loc[baselines_relevant_races_pred]
         if PLOT_ONLY_BEST:
@@ -240,9 +243,11 @@ def plot_pr_results(curve_factor_x, curve_factor_y, model_results, baseline_resu
                 plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, model_results, param, team,
                             x_label, x_points, params_to_plot)
 
+
 def create_dir_if_not_exist(save_file_path):
     if not os.path.exists(save_file_path):
         os.mkdir(save_file_path)
+
 
 def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, model_results, param, team, x_label,
                 x_points, params):
@@ -285,8 +290,8 @@ def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, mod
         if param == 'imputer':
             label = f"{imputation_labels[label]}"
             ax.plot(recall_points, precision_points, label=label, linewidth=5, color=colors_imputation[j])
-        elif param == 'model':
-            label = f"{model_labels[label]}"
+        elif param in ['model', 'score_model']:
+            label = f"{param}-{model_labels[label]}"
             ax.plot(recall_points, precision_points, label=label, linewidth=5)
         else:
             ax.plot(recall_points, precision_points, label=label, linewidth=5)
@@ -316,11 +321,11 @@ def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, mod
     # if 'model' == param:
     #     plt.xticks(fontsize=9, rotation=-45)
     if x_points is None:
-        plt.xlim(0, 1+EXTRA_LIM_GAP)
+        plt.xlim(0, 1 + EXTRA_LIM_GAP)
     else:
         x_points = x_points[1:-10] if cut_edges else x_points
-        plt.xlim(x_points[0] - 0.0001, x_points[-2]+EXTRA_LIM_GAP)
-    plt.ylim(0, 1+EXTRA_LIM_GAP)
+        plt.xlim(x_points[0] - 0.0001, x_points[-2] + EXTRA_LIM_GAP)
+    plt.ylim(0, 1 + EXTRA_LIM_GAP)
     plt.xticks(fontsize=42)
     plt.yticks(fontsize=42)
     ax.set_ylabel(titles[curve_factor_y], fontsize=44)
@@ -332,12 +337,12 @@ def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, mod
     plt.legend(prop={"size": 34})  # , loc="upper right")
     save_file_path = f'results_plots/{EXEC_NAME}'
     create_dir_if_not_exist(save_file_path)
-    save_file_path+=f'/{WORKOUTS_SRC}'
+    save_file_path += f'/{WORKOUTS_SRC}'
     create_dir_if_not_exist(save_file_path)
-    save_file_path+=f'/{team}'
+    save_file_path += f'/{team}'
     create_dir_if_not_exist(save_file_path)
     if SINGLE_RACE_TYPE:
-        save_file_path+=f'/{SINGLE_RACE_TYPE}'
+        save_file_path += f'/{SINGLE_RACE_TYPE}'
         create_dir_if_not_exist(save_file_path)
     if PLOT_ONLY_BEST:
         save_file_path += f'/{params[param]} -  {titles[curve_factor_y]} - BEST.png'

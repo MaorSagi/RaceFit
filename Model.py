@@ -117,8 +117,8 @@ def transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, param
         y.append(participated_in_race)
         input_row = {}
         for stage_type in range(stage_types_total):
-            input_row[RACE_ID_FEATURE]=race
-            input_row[CYCLIST_ID_FEATURE]=cyclist
+            input_row[RACE_ID_FEATURE] = race
+            input_row[CYCLIST_ID_FEATURE] = cyclist
             stages_in_cluster = cyclist_in_race[cyclist_in_race['cluster'] == stage_type]
             input_row[f'days_in_stage_type_{stage_type}'] = len(stages_in_cluster)
             cyclist_stage_input = stages_in_cluster.copy()
@@ -135,11 +135,11 @@ def transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, param
 
 
 def sort_transform_data(X, y, cyclist_stage_predict, params):
-    X_s,y_s = X.copy(),y.copy()
+    X_s, y_s = X.copy(), y.copy()
     k_clusters = params['k_clusters']
     c_model = load_clusters(k_clusters)
-    samples_clusters=c_model.predict(X_s[CLUSTERS_FEATURES])
-    X_s['cluster'] = pd.Series(samples_clusters)
+    samples_clusters = c_model.predict(X_s[CLUSTERS_FEATURES])
+    X_s['cluster'] = samples_clusters
     X_s, y_s = transform_labels_from_stages_to_races(X_s, y_s, cyclist_stage_predict, params, k_clusters)
     return X_s, y_s
 
@@ -148,20 +148,20 @@ def sort_transform_data(X, y, cyclist_stage_predict, params):
 def train(iteration: int, params: dict[str: Union[str, int, tuple[str, object]]],
           cyclists: pd.DataFrame,
           stages: pd.DataFrame) -> None:
-    trained_model_path = get_models_path(params)
     X, y, model_name, overwrite, result_consideration = extract_training_parameters(
         cyclists, params, stages)
     X, y, X_s, y_s = handle_score_model_split(params, X, y)
-
-    fit_model(X, y, iteration, model_name, overwrite, params, result_consideration,
-              trained_model_path,
-              MODEL)
-    train_second_level_model = X_s is not None
-    if train_second_level_model:
-        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, trained_model_path, MODEL)
+    train_first_level_model = is_second_model_off(params)
+    if train_first_level_model:
+        fit_model(X, y, iteration, model_name, overwrite, params, result_consideration,
+                  get_models_path(params),
+                  MODEL)
+    else:
+        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, get_models_path(params),
+                                                        MODEL)
         X_s, y_s = sort_transform_data(X_s, y_s, cyclist_stage_predict, params)
         fit_model(X_s, y_s, iteration, model_name, overwrite, params, result_consideration,
-                  trained_model_path,
+                  get_score_models_path(params),
                   SCORE_MODEL)
 
 
@@ -169,7 +169,7 @@ def fit_model(X, y, iteration, model_name, overwrite, params, result_considerati
               trained_model_path,
               model_type: Literal[MODEL, SCORE_MODEL]) -> None:
     try:
-        model_filename = f"{model_type}_{iteration + 1}_{model_name}.pkl"
+        model_filename = f"{iteration + 1}_{model_name}.pkl"
         model_full_path = f'{trained_model_path}/{model_filename}'
         if is_file_exists_and_should_not_be_changed(overwrite, model_full_path):
             return
@@ -197,17 +197,15 @@ def drop_unnecessary_features(X: pd.DataFrame,
 
 
 def handle_score_model_split(params, X, y) -> tuple[Union[float, pd.DataFrame], ...]:
-    X_s, y_s = None, None
-    if params['score_model']:
-        if params['score_model_split'] is None:
-            raise ValueError("Invalid input: for score model option the user should specify the score model split.")
-        split_fraction = params['score_model_split']
-        races_ids = X[RACE_ID_FEATURE].drop_duplicates()
-        sampled_races_ids = races_ids.sample(frac=split_fraction, random_state=1)
-        X_s = X[X[RACE_ID_FEATURE].isin(sampled_races_ids.values)]
-        y_s = y.loc[X_s.index]
-        X = X[~X[RACE_ID_FEATURE].isin(sampled_races_ids.values)]
-        y = y.loc[X.index]
+    if params['score_model_split'] is None:
+        return X, y, pd.DataFrame(), pd.DataFrame()
+    split_fraction = params['score_model_split']
+    races_ids = X[RACE_ID_FEATURE].drop_duplicates()
+    sampled_races_ids = races_ids.sample(frac=split_fraction, random_state=1)
+    X_s = X[X[RACE_ID_FEATURE].isin(sampled_races_ids.values)]
+    y_s = y.loc[X_s.index]
+    X = X[~X[RACE_ID_FEATURE].isin(sampled_races_ids.values)]
+    y = y.loc[X.index]
     return X, y, X_s, y_s
 
 
@@ -242,11 +240,19 @@ def fill_pred_matrix(X_test, y_test, y_prob, pred_matrix, group_feature):
     return pred_matrix
 
 
+def is_second_model_off(params):
+    return (params['score_model'] is None) or (params['score_model'] == 'without')
+
+
+def is_second_model_on(params):
+    return not is_second_model_off(params)
+
+
 @time_wrapper
 def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
              params: dict[str: Union[str, int, tuple[str, object]]]) -> dict[str:Union[float, list[float], str], ...]:
     model_name, race_prediction, races_cyclist_matrix, \
-    stages_cyclist_matrix, trained_model_path = init_parameters_for_eval_func(params)
+    stages_cyclist_matrix = init_parameters_for_eval_func(params)
 
     stages_cyclists_pred_matrix, _ = init_pred_matrix(X_test, stages_cyclist_matrix, STAGE_ID_FEATURE, race_prediction)
     races_cyclists_pred_matrix, races_cyclists_test_matrix = init_pred_matrix(X_test, races_cyclist_matrix,
@@ -254,15 +260,14 @@ def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
     races_cyclists_pred_matrix = races_cyclists_pred_matrix.fillna(0)
     races_cyclists_soft_pred_matrix = races_cyclists_pred_matrix.copy()
     cyclists_columns = races_cyclists_test_matrix.columns[1:]
+    second_level_model_off = is_second_model_off(params)
 
-    second_level_model_off = not params['score_model']
     if second_level_model_off:
-        X_test_as_input = drop_unnecessary_features(X_test, params)
-        y_prob = model_predict(X_test_as_input, iteration, model_name, params, trained_model_path, MODEL)
+        y_prob = model_predict(X_test, iteration, model_name, params, get_models_path(params), MODEL)
     else:
-        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, trained_model_path, MODEL)
+        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, get_models_path(params), MODEL)
         X_s, y_s = sort_transform_data(X_test, y_test, cyclist_stage_predict, params)
-        y_prob = model_predict(X_s, iteration, model_name, params, trained_model_path, SCORE_MODEL)
+        y_prob = model_predict(X_s, iteration, model_name, params, get_score_models_path(params), SCORE_MODEL)
         race_prediction = True
         X_test, y_test = X_s, y_s
 
@@ -274,7 +279,7 @@ def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
     total_scores = evaluate_model_predictions(X_test, cyclists_columns, iteration, params, race_prediction,
                                               races_cyclists_pred_matrix, races_cyclists_soft_pred_matrix,
                                               races_cyclists_test_matrix, stages_cyclists_pred_matrix,
-                                              trained_model_path, y_prob)
+                                              get_score_models_path(params), y_prob)
 
     return total_scores
 
@@ -301,9 +306,13 @@ def evaluate_model_predictions(X_test: pd.DataFrame, cyclists_columns: list[int,
 
         top_cyclists = get_top_cyclists(cyclists_participated_in_race_predict, cyclists_to_choose, y_prob)
 
-        races_cyclists_pred_matrix = set_prediction_matrix(cyclists_columns, i, race_id, races_cyclists_pred_matrix, top_cyclists)
-        races_cyclists_soft_pred_matrix = set_prediction_proba_matrix(cyclists_columns, i, race_id, races_cyclists_soft_pred_matrix, y_prob, top_cyclists,
-                                    cyclists_in_team, cyclists_participated_in_race_predict)
+        races_cyclists_pred_matrix = set_prediction_matrix(cyclists_columns, i, race_id, races_cyclists_pred_matrix,
+                                                           top_cyclists)
+        races_cyclists_soft_pred_matrix = set_prediction_proba_matrix(cyclists_columns, i, race_id,
+                                                                      races_cyclists_soft_pred_matrix, y_prob,
+                                                                      top_cyclists,
+                                                                      cyclists_in_team,
+                                                                      cyclists_participated_in_race_predict)
 
         i += 1
         prediction_matrix_path = f"{trained_model_path}/prediction_matrix.csv"
@@ -391,16 +400,17 @@ def fill_pred_matrices(X_test, params, race_prediction, races_cyclists_soft_pred
     return races_cyclists_soft_pred_matrix, stages_cyclists_pred_matrix
 
 
-def model_predict(X_test_as_input: pd.DataFrame, iteration: int, model_name: str,
+def model_predict(X: pd.DataFrame, iteration: int, model_name: str,
                   params: dict[str: Union[str, int, tuple[str, object]]], trained_model_path: str,
                   model_type: Literal[MODEL, SCORE_MODEL]) -> np.array:
     y_prob = None
     try:
-        model_filename = f"{model_type}_{iteration + 1}_{model_name}.pkl"
+        model_filename = f"{iteration + 1}_{model_name}.pkl"
         model_full_path = f'{trained_model_path}/{model_filename}'
         if os.path.exists(model_full_path):
             model = pickle.load(open(model_full_path, 'rb'))
-            y_prob = params[model_type][1]['predict_proba'](model, X_test_as_input)
+            X = drop_unnecessary_features(X, params)
+            y_prob = params[model_type][1]['predict_proba'](model, X)
     except Exception as err:
         log(f"Predict stage value. Error: {err} Params: {get_params_str(params)}", "ERROR",
             log_path=trained_model_path)
@@ -445,12 +455,11 @@ def init_pred_matrix(X_test: pd.DataFrame, cyclist_allocation_matrix: pd.DataFra
 def init_parameters_for_eval_func(params: dict[str: Union[str, int, tuple[str, object]]]) -> tuple[
     Union[str, pd.DataFrame], ...]:
     from DataManager import races_matrix_path, stages_matrix_path
-    trained_model_path = get_models_path(params)
     stages_cyclist_matrix = import_data_from_csv(stages_matrix_path)
     races_cyclist_matrix = import_data_from_csv(races_matrix_path)
     model_name = params['model'][0]
     race_prediction = params['race_prediction'] if 'race_prediction' in params else False
-    return model_name, race_prediction, races_cyclist_matrix, stages_cyclist_matrix, trained_model_path
+    return model_name, race_prediction, races_cyclist_matrix, stages_cyclist_matrix
 
 
 def get_models_path(params: dict[str: Union[str, int, tuple[str, object]]]) -> str:
@@ -461,6 +470,26 @@ def get_models_path(params: dict[str: Union[str, int, tuple[str, object]]]) -> s
     if not os.path.exists(models_path):
         os.mkdir(models_path)
     return models_path
+
+
+def get_score_models_path(params: dict[str: Union[str, int, tuple[str, object]]]) -> str:
+    models_path = get_models_path(params)
+    score_models_dir_name = get_params_str({k: v for (k, v) in params.items() if k in SCORE_MODELS_COLS})
+    score_models_path = f'{models_path}/{score_models_dir_name}'
+    if not os.path.exists(score_models_path):
+        os.mkdir(score_models_path)
+    return score_models_path
+
+
+def get_expr_loop_args(eval_model, train_eval, train_model, params):
+    is_score_model = is_second_model_on(params)
+    logging_action_name = "Score Model" if is_score_model else "Model"
+    trained_model_path = get_score_models_path(params)
+    model_results_path = f'{trained_model_path}/{MODEL_RESULTS_FILE_NAME}'
+    evaluate_funcs = [evaluate] if (train_eval or eval_model) else None
+    train_func = train if (train_eval or train_model) else None
+    expr_loop_args = (model_results_path, trained_model_path, logging_action_name, evaluate_funcs, train_func)
+    return expr_loop_args, model_results_path
 
 
 def append_baselines_results(data_files: str, exec_dir_path: str) -> None:

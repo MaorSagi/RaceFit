@@ -4,7 +4,8 @@ from typing import Union
 import pandas as pd
 from DataManager import init_data, get_raw_data_path, get_data_path, create_boolean_matrix, create_input_data, \
     data_cleaning_and_preprocessing, data_imputation
-from Model import append_results_from_files, data_split, train, evaluate, get_models_path, fit_clustering_algorithm
+from Model import append_results_from_files, data_split, train, evaluate, get_models_path, fit_clustering_algorithm, \
+    is_second_model_off, get_score_models_path, is_second_model_on, get_expr_loop_args
 from utils import *
 from sklearn.naive_bayes import GaussianNB
 from xgboost.sklearn import XGBClassifier
@@ -278,13 +279,9 @@ def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clusterin
         expr_loop_args = (baseline_results_path, data_exec_path, "Baseline", evaluate_baselines_functions)
         activate_experiment_loop(baseline_results_path, overwrite, *expr_loop_args)
     if clustering:
-        fit_clustering_algorithm(clustering_algorithms[CLUSTERING_ALG_NAME],k_clusters)
+        fit_clustering_algorithm(clustering_algorithms[CLUSTERING_ALG_NAME], k_clusters)
     if train_eval or train_model or eval_model:
-        trained_model_path = get_models_path(params)
-        model_results_path = f'{trained_model_path}/{MODEL_RESULTS_FILE_NAME}'
-        evaluate_funcs = [evaluate] if (train_eval or eval_model) else None
-        train_func = train if (train_eval or train_model) else None
-        expr_loop_args = (model_results_path, trained_model_path, "Model", evaluate_funcs, train_func)
+        expr_loop_args, model_results_path = get_expr_loop_args(eval_model, train_eval, train_model, params)
         activate_experiment_loop(model_results_path, overwrite, *expr_loop_args)
 
 
@@ -323,7 +320,7 @@ def write_results_to_file(results_path: str, iteration: int,
     total_scores.update(results)
     params_cpy = params.copy()
     params_cpy['team_name'] = team_names_dict[params_cpy['team_id']]
-    for k in RAW_DATA_COLS + DATA_COLS + MODELS_COLS:
+    for k in RAW_DATA_COLS + DATA_COLS + MODELS_COLS + SCORE_MODELS_COLS:
         if type(params_cpy[k]) is tuple:
             total_scores[k] = params_cpy[k][0]
         else:
@@ -382,7 +379,8 @@ def init_params_from_parser(parser: ArgumentParser) -> None:
                       args.aggregation_function]) if args.aggregation_function else None,
                   similarity=(args.similarity, similarity_functions[args.similarity]) if args.similarity else None,
                   model=(args.model, models[args.model]) if args.model else None,
-                  score_model=(args.score_model, models[args.score_model]) if args.score_model else None,
+                  score_model=(args.score_model, models[args.score_model]) if (
+                              args.score_model and args.score_model != 'without') else 'without',
                   kfold=args.kfold,
                   job_id=args.job_id,
                   create_matrix='create_matrix' in str(args.action),

@@ -1,6 +1,6 @@
 APPEND_RESULTS, RUN_EXPERIMENTS = "append_results", "run_experiments"
 EXPR_TASK = RUN_EXPERIMENTS
-EXEC_NAME = 'Nov 17 - after refactoring'
+EXEC_NAME = 'Nov 21 - 2nd lvl model'
 EXECS_DIR_PATH = 'executions'
 EXEC_PATH = f'{EXECS_DIR_PATH}/{EXEC_NAME}'
 ALLOCATION_MATRICES_PATH = 'allocation_matrices'
@@ -101,7 +101,8 @@ STRAVA_CYCLIST_STATS_COLS = ['total_races_number_in_team', 'cyclist_total_races_
 RAW_DATA_COLS = ['team_name', 'workouts_source', 'time_window', 'imputer_workouts']
 DATA_COLS = ['col_threshold', 'imputer']  # 'row_threshold','scaler', 'aggregation_function'
 MODEL, SCORE_MODEL = 'model', 'score_model'
-MODELS_COLS = ['model','score_model','result_consideration']  # , 'feature_isolation'
+MODELS_COLS = [MODEL,'result_consideration']  # , 'feature_isolation'
+SCORE_MODELS_COLS = [SCORE_MODEL]  # , 'feature_isolation'
 LOG_LEVEL = 'create_input'
 LOG_DICT = {'ERROR': 0, 'INFO': 1, 'Scores': 2, 'CV': 3, 'create_input': 4}
 LEAVE_ONE_OUT = 'leave_one_out'
