@@ -8,7 +8,7 @@ You can find the poster and the presentation presented in the ECML-PKDD 2022 con
 Also, the paper is available [here](https://dtai.cs.kuleuven.be/events/MLSA22/papers/MLSA22_paper_9312.pdf) and the poster [here](https://drive.google.com/file/d/1DBAcgUwpGI6oHocyJHQfuSA4MrQfk17D/view?usp=share_link).
 
 ## Installation
-It required to have a python environment containing the necessary packages. For you convenience, a file named 'requirements.txt' is attached from which you can install the libraries easily.
+It is required to have a python environment containing the necessary packages. For you convenience, a file named 'requirements.txt' is attached from which you can install the libraries easily.
 
 In order to install the environment from the file run the following command:
 
@@ -24,7 +24,7 @@ The database of the cyclists, races, and teams can not be publish currently, par
 
 These are the actions (tasks) the system allows:
 
-- Create teams cyclist participation in race and in stage
+- Create teams cyclist participation in race and in stage matrices
 - Create examples and labels input from raw data
 - Preprocessing 
 - Evaluate popularity baselines
