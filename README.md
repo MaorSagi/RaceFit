@@ -177,6 +177,16 @@ Optional use of the method include clustering process when summing the cyclist-s
 Possible parameters:
 - Number of Clusters: int, specify how many types of stages (clusters) to make
 
+mandatory parameters:
+```bash
+-a clustering
+-kc <number of clusters>
+```
+
+Usage example
+```bash
+python -a clustering -kc 3
+```
 
 ### Train and Evaluate RaceFit
 
@@ -218,9 +228,15 @@ optional:
 -kc <number of clusters>
 ```
 
-Usage example
+Usage examples 
+Base model training
 ```bash
 python -a train_eval -iw without -i SimpleImputer -t 5 -ti 2738 -o 1 -ws STRAVA -af SmartAgg -c 0.4 -oi 1 -m CatBoost
+```
+
+Scores model training
+```bash
+python -a train_eval -iw without -i SimpleImputer -t 5 -ti 2738 -o 1 -ws STRAVA -af SmartAgg -c 0.4 -oi 1 -m CatBoost -sm DecisionTree -sms 0.2 -kc 3
 ```
 
 ## Plot Results
