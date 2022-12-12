@@ -245,15 +245,14 @@ def run_job() -> None:
     overwrite, preprocessing, train_eval, train_model = extract_main_job_parameters()
     non_team_dependent_actions = [create_stages_cyclists_matrix, clustering]
     team_dependent_actions = [create_input, preprocessing, eval_baselines, train_eval, train_model, eval_model]
-    data_exec_path, raw_data_exec_path = '', ''
+    raw_data_exec_path = ''
     if any(non_team_dependent_actions):
         log(f"Started", log_path=f"{EXEC_PATH}")
     if any(team_dependent_actions):
-        data_exec_path = get_data_path(params)
         raw_data_exec_path = get_raw_data_path(params)
         log(f"Started", log_path=raw_data_exec_path)
     try:
-        handle_job_use_cases(data_exec_path, raw_data_exec_path, clustering, create_input,
+        handle_job_use_cases(raw_data_exec_path, clustering, create_input,
                              create_stages_cyclists_matrix, eval_baselines,
                              eval_model, k_clusters, overwrite, preprocessing, train_eval,
                              train_model)
@@ -267,15 +266,18 @@ def run_job() -> None:
             log_path=raw_data_exec_path)
 
 
-def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clustering: bool, create_input: bool,
+def handle_job_use_cases(raw_data_exec_path: str, clustering: bool, create_input: bool,
                          create_stages_cyclists_matrix: bool, eval_baselines: bool,
                          eval_model: bool, k_clusters: int, overwrite: bool, preprocessing: bool, train_eval: bool,
                          train_model: bool) -> None:
+    data_exec_path=''
     if create_stages_cyclists_matrix:
         create_boolean_matrix()
     X_raw_data_path = f'{raw_data_exec_path}/X_cols_raw_data.csv'
     if create_input and is_file_does_not_exist_or_should_be_changed(overwrite, X_raw_data_path):
         create_input_data(params)
+    if preprocessing or eval_baselines:
+        data_exec_path = get_data_path(params)
     X_data_path = f'{data_exec_path}/X_cols_data.csv'
     if preprocessing and is_file_does_not_exist_or_should_be_changed(overwrite, X_data_path):
         Y_raw_data_path = f'{raw_data_exec_path}/Y_cols_raw_data.csv'
