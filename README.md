@@ -8,7 +8,7 @@ You can find the poster and the presentation presented in the ECML-PKDD 2022 con
 Also, the paper is available [here](https://dtai.cs.kuleuven.be/events/MLSA22/papers/MLSA22_paper_9312.pdf) and the poster [here](https://drive.google.com/file/d/1DBAcgUwpGI6oHocyJHQfuSA4MrQfk17D/view?usp=share_link).
 
 ## Installation
-It required to have a python environment containing the necessary packages. For you convenience, a file named 'requirements.txt' is attached from which you can install the libraries easily.
+It is required to have a python environment containing the necessary packages. For you convenience, a file named 'requirements.txt' is attached from which you can install the libraries easily.
 
 In order to install the environment from the file run the following command:
 
@@ -24,10 +24,11 @@ The database of the cyclists, races, and teams can not be publish currently, par
 
 These are the actions (tasks) the system allows:
 
-- Create teams cyclist participation in race and in stage
+- Create teams cyclist participation in race and in stage matrices
 - Create examples and labels input from raw data
 - Preprocessing 
 - Evaluate popularity baselines
+- Training clustering model 
 - Training and evaluation of RaceFit
 
 In the next sections I will describe the parameters for each one of the tasks with actual usage examples.
@@ -169,9 +170,27 @@ Usage example
 python -a eval_baselines -iw without -i SimpleImputer -t 5 -ti 2738 -o 1 -ws STRAVA -af SmartAgg -c 0.4 -oi 1
 ```
 
+### Train Clustering Model
+
+Optional use of the method include clustering process when summing the cyclist-stages scores to cyclist-races scores. If this is the case, clustering models should be pretrained to the RaceFit training.  
+
+Possible parameters:
+- Number of Clusters: int, specify how many types of stages (clusters) to make
+
+mandatory parameters:
+```bash
+-a clustering
+-kc <number of clusters>
+```
+
+Usage example
+```bash
+python -a clustering -kc 3
+```
+
 ### Train and Evaluate RaceFit
 
-The algorithm of RaceFit and its evaluation including training the classifier the algorithm use.
+The algorithm of RaceFit and its evaluation including the training of the models the algorithm use. The Base Classifier is defined as the cyclist-stage ranker and the default behaviour is computation of the cyclist-race ranking by using the average function. Additionally, learning the aggregation function of stages to race is allowed. Scores Classifier is used for the function weights learning, the training data fraction of the second-level classifier is defined as the Split Fraction, and the scores' classifier input preparation require using clustering pretrained model specified by the number of clusters.    
 
 Possible parameters:
 - Action: train_model, eval_model or train_eval that combines both
@@ -181,7 +200,10 @@ Possible parameters:
 - Workouts Aggregation Function: SmartAgg (use both AVG and SUM), Average
 - Examples Features Non-Missing Ratio: without, float (0.4 value will cause dropping examples features with missing ratio of 60% or greater)
 - Standardization: StandardScaler, MinMaxScaler, RobustScaler, MaxAbsScaler
-- Classifier: CatBoost, AdaBoost, Logistic, DecisionTree, RandomForest, KNN, SVC, XGBoost, LGBM, GaussianNB, GradientBoosting
+- Base Classifier: CatBoost, AdaBoost, Logistic, DecisionTree, RandomForest, KNN, SVC, XGBoost, LGBM, GaussianNB, GradientBoosting
+- Scores Classifier: CatBoost, AdaBoost, Logistic, DecisionTree, RandomForest, KNN, SVC, XGBoost, LGBM, GaussianNB, GradientBoosting
+- Split Fraction: float, percentage of the training data used for scores classifier
+- Number of Clusters: int, specify which one of the pretrained clustering models to use
 
 mandatory parameters:
 ```bash
@@ -193,7 +215,7 @@ mandatory parameters:
 -af <aggregation function>                  # continue the last process of preprocessing by insert the same function
 -i <examples imputer>                       # continue the last process of preprocessing by insert the same imputer
 -c <examples features non-missing ratio>    # continue the last process of preprocessing by insert the same c value
--m <classifier>
+-m <base classifier>
 ```
 optional:
 ```bash
@@ -201,11 +223,20 @@ optional:
 -o 1                                        # overwrite the existing files
 -s <scaler>                                 # continue the last process of preprocessing by insert the same scaler
 -oi 1                                       # evaluate only important races (taken from PCS dropdown races list)
+-sm <scores classifier>
+-sms <split fraction>
+-kc <number of clusters>
 ```
 
-Usage example
+Usage examples 
+Base model training
 ```bash
 python -a train_eval -iw without -i SimpleImputer -t 5 -ti 2738 -o 1 -ws STRAVA -af SmartAgg -c 0.4 -oi 1 -m CatBoost
+```
+
+Scores model training
+```bash
+python -a train_eval -iw without -i SimpleImputer -t 5 -ti 2738 -o 1 -ws STRAVA -af SmartAgg -c 0.4 -oi 1 -m CatBoost -sm DecisionTree -sms 0.2 -kc 3
 ```
 
 ## Plot Results
