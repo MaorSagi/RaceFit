@@ -173,6 +173,8 @@ def fit_model(X, y, iteration, model_name, overwrite, params, result_considerati
         model_full_path = f'{trained_model_path}/{model_filename}'
         if is_file_exists_and_should_not_be_changed(overwrite, model_full_path):
             return
+        if is_file_exists_and_should_be_changed(overwrite, model_full_path):
+            os.remove(model_full_path)
         model = params[model_type][1]['constructor']()
         if X.empty:
             return
@@ -265,7 +267,8 @@ def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
     if second_level_model_off:
         y_prob = model_predict(X_test, iteration, model_name, params, get_models_path(params), MODEL)
     else:
-        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, get_models_path(params), MODEL)
+        cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, get_models_path(params),
+                                                        MODEL)
         X_s, y_s = sort_transform_data(X_test, y_test, cyclist_stage_predict, params)
         y_prob = model_predict(X_s, iteration, model_name, params, get_score_models_path(params), SCORE_MODEL)
         race_prediction = True
@@ -293,6 +296,7 @@ def evaluate_model_predictions(X_test: pd.DataFrame, cyclists_columns: list[int,
     race_cyclists = {}
     i = 0
     total_scores = []
+    prediction_matrix_path = f"{trained_model_path}/prediction_matrix.csv"
     for race_id, g in grouped_data_by_races:
         cyclists_to_choose = get_number_of_cyclists_participated_in_race(cyclists_columns, race_id,
                                                                          races_cyclists_test_matrix)
@@ -315,7 +319,6 @@ def evaluate_model_predictions(X_test: pd.DataFrame, cyclists_columns: list[int,
                                                                       cyclists_participated_in_race_predict)
 
         i += 1
-        prediction_matrix_path = f"{trained_model_path}/prediction_matrix.csv"
         total_scores = evaluate_results(params, iteration, race_cyclists, cyclists_columns, races_cyclists_pred_matrix,
                                         races_cyclists_soft_pred_matrix, races_cyclists_test_matrix,
                                         prediction_matrix_path, log_path=trained_model_path)
@@ -486,10 +489,10 @@ def get_expr_loop_args(eval_model, train_eval, train_model, params):
     logging_action_name = "Score Model" if is_score_model else "Model"
     trained_model_path = get_score_models_path(params)
     model_results_path = f'{trained_model_path}/{MODEL_RESULTS_FILE_NAME}'
+    prediction_matrix_path = f"{trained_model_path}/prediction_matrix.csv"
     evaluate_funcs = [evaluate] if (train_eval or eval_model) else None
     train_func = train if (train_eval or train_model) else None
-    expr_loop_args = (model_results_path, trained_model_path, logging_action_name, evaluate_funcs, train_func)
-    return expr_loop_args, model_results_path
+    return model_results_path, prediction_matrix_path, trained_model_path, logging_action_name, evaluate_funcs, train_func
 
 
 def append_baselines_results(data_files: str, exec_dir_path: str) -> None:
@@ -535,8 +538,10 @@ def append_results_from_files(exec_dir_path: str) -> None:
                         if file == BASELINES_FILE_NAME:
                             append_baselines_results(data_files, exec_dir_path)
                         elif os.path.isdir(data_files):
-                            model_dir = file
-                            append_model_results(data_files, exec_dir_path, raw_data_dir, data_dir, model_dir)
+                            for model_file in os.listdir(data_files):
+                                model_dir = os.path.join(data_files, model_file)
+                                if os.path.isdir(model_dir):
+                                    append_model_results(model_dir, exec_dir_path, raw_data_dir, data_dir, model_file)
 
 
 def fit_clustering_algorithm(clustering_algorithm: Callable, k_clusters: int) -> None:
@@ -546,8 +551,8 @@ def fit_clustering_algorithm(clustering_algorithm: Callable, k_clusters: int) ->
     filtered_stages = filtered_stages_till_2016[non_null_pred]
     c_model = clustering_algorithm(n_clusters=k_clusters, random_state=0)
     c_model.fit_predict(filtered_stages[CLUSTERS_FEATURES])
-    joblib.dump(c_model, f'{EXEC_PATH}/{CLUSTERING_ALG_NAME}_model_{k_clusters}.joblib')
+    joblib.dump(c_model, f'pre calculated data/{CLUSTERING_ALG_NAME}_model_{k_clusters}.joblib')
 
 
 def load_clusters(k_clusters: int):
-    return joblib.load(f'{EXEC_PATH}/{CLUSTERING_ALG_NAME}_model_{k_clusters}.joblib')
+    return joblib.load(f'pre calculated data/{CLUSTERING_ALG_NAME}_model_{k_clusters}.joblib')

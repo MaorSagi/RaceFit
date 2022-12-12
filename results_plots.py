@@ -291,7 +291,7 @@ def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, mod
             label = f"{imputation_labels[label]}"
             ax.plot(recall_points, precision_points, label=label, linewidth=5, color=colors_imputation[j])
         elif param in ['model', 'score_model']:
-            label = f"{param}-{model_labels[label]}"
+            label = f"{model_labels[label]}"
             ax.plot(recall_points, precision_points, label=label, linewidth=5)
         else:
             ax.plot(recall_points, precision_points, label=label, linewidth=5)

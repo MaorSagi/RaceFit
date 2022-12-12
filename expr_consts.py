@@ -1,7 +1,7 @@
 APPEND_RESULTS, RUN_EXPERIMENTS = "append_results", "run_experiments"
 EXPR_TASK = RUN_EXPERIMENTS
-EXEC_NAME = 'Nov 21 - 2nd lvl model'
-EXECS_DIR_PATH = 'executions'
+EXEC_NAME = 'Dec 5 - race prediction'
+EXECS_DIR_PATH = 'executions'#'M:\Maor\Expr\maors_code\executions'
 EXEC_PATH = f'{EXECS_DIR_PATH}/{EXEC_NAME}'
 ALLOCATION_MATRICES_PATH = 'allocation_matrices'
 SIMILARITY_COEFF = 10000000000000000.0

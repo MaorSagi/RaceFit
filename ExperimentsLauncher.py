@@ -98,8 +98,6 @@ feature_to_eval_function_dict = {"cyclist_popularity_ranking_in_team": evaluate_
 @time_wrapper
 def evaluate_baseline(baseline_name: str, iteration: int, X_test: pd.DataFrame) -> dict[str:Union[str, float]]:
     overwrite, prediction_matrix_path, races_cyclist_matrix = init_parameters_for_eval_baselines()
-    if is_file_exists_and_should_be_changed(overwrite, prediction_matrix_path):
-        os.remove(prediction_matrix_path)
     races_columns, races_cyclists_pred_matrix, races_cyclists_soft_pred_matrix, \
     races_cyclists_test_matrix = create_prediction_matrices(X_test, races_cyclist_matrix)
     grouped_data_by_races = X_test.groupby(RACE_ID_FEATURE)
@@ -183,7 +181,18 @@ def create_prediction_matrices(X_test: pd.DataFrame, races_cyclist_matrix: pd.Da
     return races_columns, races_cyclists_pred_matrix, races_cyclists_soft_pred_matrix, races_cyclists_test_matrix
 
 
-def experiment_loop(results_path: str,
+def is_eval_and_results_exists(eval_functions: list[Callable], results_path: str, prediction_matrix_path: str) -> bool:
+    if eval_functions is not None:
+        if is_file_exists_and_should_not_be_changed(params['overwrite'], results_path):
+            return True
+        if is_file_exists_and_should_be_changed(params['overwrite'], results_path):
+            os.remove(results_path)
+        if is_file_exists_and_should_be_changed(params['overwrite'], prediction_matrix_path):
+            os.remove(prediction_matrix_path)
+    return False
+
+
+def experiment_loop(results_path: str, prediction_matrix_path: str,
                     log_path: str, action_logging_name: str, eval_functions: list[Callable] = None,
                     train_func: Callable = None) -> None:
     from DataManager import important_races_ids
@@ -196,6 +205,9 @@ def experiment_loop(results_path: str,
         cv_num_of_splits = params['kfold']
         group_by_feature = RACE_ID_FEATURE if params['data_split'] is None else params['data_split']
         split_args = (X, group_by_feature, cv_num_of_splits) if cv_num_of_splits else (X, group_by_feature)
+
+        if is_eval_and_results_exists(eval_functions, results_path, prediction_matrix_path):
+            return
         for train_index, test_index in data_split(params['data_split'], *split_args):
             try:
                 X_train, X_test = X[X.index.isin(train_index)], X[
@@ -275,21 +287,14 @@ def handle_job_use_cases(data_exec_path: str, raw_data_exec_path: str, clusterin
         Y.to_csv(Y_data_path, index=False, header=True)
     if eval_baselines:
         baseline_results_path = f'{data_exec_path}/{BASELINES_FILE_NAME}'
+        prediction_matrix_path = f"{data_exec_path}/prediction_matrix.csv"
         evaluate_baselines_functions = [feature_to_eval_function_dict[b] for b in evaluate_baselines]
-        expr_loop_args = (baseline_results_path, data_exec_path, "Baseline", evaluate_baselines_functions)
-        activate_experiment_loop(baseline_results_path, overwrite, *expr_loop_args)
+        experiment_loop(baseline_results_path, prediction_matrix_path, data_exec_path, "Baseline",
+                        evaluate_baselines_functions)
     if clustering:
         fit_clustering_algorithm(clustering_algorithms[CLUSTERING_ALG_NAME], k_clusters)
     if train_eval or train_model or eval_model:
-        expr_loop_args, model_results_path = get_expr_loop_args(eval_model, train_eval, train_model, params)
-        activate_experiment_loop(model_results_path, overwrite, *expr_loop_args)
-
-
-def activate_experiment_loop(model_results_path: str,
-                             overwrite: bool, *expr_loop_args: tuple[Union[str, Callable], ...]) -> None:
-    if is_file_does_not_exist_or_should_be_changed(overwrite, model_results_path):
-        if is_file_exists_and_should_be_changed(overwrite, model_results_path):
-            os.remove(model_results_path)
+        expr_loop_args = get_expr_loop_args(eval_model, train_eval, train_model, params)
         experiment_loop(*expr_loop_args)
 
 
@@ -380,7 +385,7 @@ def init_params_from_parser(parser: ArgumentParser) -> None:
                   similarity=(args.similarity, similarity_functions[args.similarity]) if args.similarity else None,
                   model=(args.model, models[args.model]) if args.model else None,
                   score_model=(args.score_model, models[args.score_model]) if (
-                              args.score_model and args.score_model != 'without') else 'without',
+                          args.score_model and args.score_model != 'without') else 'without',
                   kfold=args.kfold,
                   job_id=args.job_id,
                   create_matrix='create_matrix' in str(args.action),

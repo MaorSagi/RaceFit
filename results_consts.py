@@ -347,8 +347,8 @@ ONE_DAY_RACES, MAJOR_TOURS, GRAND_TOURS = "One Day Races", "Major Tours", "Grand
 
 curve_factor_x = 'recalls'  # 'precision_recall_curve'
 curve_factor_y = 'precisions'
-EXEC_NAME = "Nov 17 - after refactoring"  # "Sep 6-rerun - J paper results"#
-EXEC_BASE_PATH = f"./executions/{EXEC_NAME}"  # f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"
+EXEC_NAME = "Dec 5 - race prediction"  # "Sep 6-rerun - J paper results"#
+EXEC_BASE_PATH = f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"#f"./executions/{EXEC_NAME}"  # f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"
 WORKOUTS_SRC = 'STRAVA'  # 'STRAVA'
 agg_func = 'SmartAgg'
 POPULARITY_IN_CONTINENT = "Popularity in continent"
@@ -364,12 +364,12 @@ features_names_dict = tp_features_names_dict if WORKOUTS_SRC == 'TP' else strava
 features_color_dict = {f: BAR_PLOT_COLORS_DICT[f.split()[0]] for f in features_names_dict.values()}
 
 SINGLE_RACE_TYPE = None
-SINGLE_TEAM = "Israel - Premier Tech"  # "AG2R Citroën Team"  # "Israel - Premier Tech"
+SINGLE_TEAM = None#"Israel - Premier Tech"  # "AG2R Citroën Team"  # "Israel - Premier Tech"
 PLOT_AUC_PR = False
 
 AUC_PR_INTERACTION = False
 
-PLOT_EXPR_RESULTS = True
+PLOT_EXPR_RESULTS = False
 with_baseline = True
 
 result_list = []  # [f"{EXEC_BASE_PATH}/['without', 5, 'STRAVA', 'Israel - Premier Tech']/[0.4, 'SimpleImputer']/['CatBoost']/ModelResults.csv"]  # [f"{EXEC_BASE_PATH}/[0.7, 0.7, 'SimpleImputer', 'without', 5, 'SmartAgg', 'TP', 'Israel - Premier Tech']/['CatBoost', None]/ModelResults.csv"]
@@ -379,7 +379,7 @@ model_results_path = f"{EXEC_BASE_PATH}/Final_Model_Results.csv"
 PLOT_TIME = False
 top_i = 8
 
-PLOT_KN_RECALLS = False
+PLOT_KN_RECALLS = True
 xpoints = range(K_POINTS)
 
 global_best_params_dict = {
@@ -409,7 +409,9 @@ PLOT_ONLY_BEST = False
 params_to_plot = {'imputer': 'Imputer Type',
                   # 'imputer_workouts': 'Workouts Imputer Type',
                   'model': 'Model',
-                  'score_model': 'Score Model',
+                  # 'score_model': 'Score Model',
+                  # 'score_model_split':'Score model Split',
+                  # 'k_clusters':'Number of Clusters',
                   # 'result_consideration':'Results Consideration',
                   # 'row_threshold': 'Row Threshold',
                   # 'col_threshold': 'Column Threshold',
@@ -417,8 +419,8 @@ params_to_plot = {'imputer': 'Imputer Type',
                   }
 imputation_labels = {'without': 'Without imputation', 'SimpleImputer': 'With imputation - SimpleImputer',
                      'KNNImputer': 'With imputation - KNNImputer'}  # {'without': 'Without imputation', 'SimpleImputer': 'With imputation'}
-model_labels = {'DecisionTree': 'Decision Tree', 'CatBoost': 'CatBoost', 'Logistic': 'Logistic Regression','without':'Without'}
-models_to_plot = ['DecisionTree', 'CatBoost', 'Logistic']
+model_labels = {'DecisionTree': 'Decision Tree', 'RandomForest': 'Random Forest', 'CatBoost': 'CatBoost', 'Logistic': 'Logistic Regression','without':'Without'}
+models_to_plot = ['RandomForest','DecisionTree', 'CatBoost', 'Logistic']
 # BEST_RUN_MODEL_DIR = f"['{best_params_dict['model']}', None]"
 
 

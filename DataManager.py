@@ -127,10 +127,9 @@ def init_cols(workouts_source: str, race_prediction: bool) -> None:
     cyclist_cols = CYCLIST_GENERAL_COLS + list(
         filter(lambda x: x != CYCLIST_ID_FEATURE, workouts_cols)) + cyclist_stats_cols
     stages_cols = STAGES_COLS
-    if race_prediction:
-        stages_cols += ['time_trial_stages_count', 'is_flat', 'is_hills_flat', 'is_hills', 'is_mountains_flat',
-                        'is_mountains_hills']
-    else:
+    stages_cols += ['time_trial_stages_count', 'is_flat', 'is_hills_flat', 'is_hills', 'is_mountains_flat',
+                    'is_mountains_hills']
+    if not race_prediction:
         stages_cols += ['race_total_distance', 'race_total_elevation_gain']
 
 
@@ -535,15 +534,27 @@ def create_input_for_cyclist_in_event(X: pd.DataFrame, X_prev: pd.DataFrame, Y: 
     return X, Y
 
 
+def add_stages_agg_columns(race, stages_agg_record) -> pd.Series:
+    race['is_flat'] = stages_agg_record['parcours_type']
+    race['is_hills_flat'] = stages_agg_record['parcours_type']
+    race['is_hills'] = stages_agg_record['parcours_type']
+    race['is_mountains_flat'] = stages_agg_record['parcours_type']
+    race['is_mountains_hills'] = stages_agg_record['parcours_type']
+    race['time_trial_stages_count'] = stages_agg_record['time_trial_stages_count']
+    return race
+
+
 def update_stages_input(Y: pd.DataFrame, cyclist_id: int, cyclists_participation_in_event: pd.Series,
                         data_exec_path: str, event_id: int, num_of_stages_in_race: int, race_date: date, race_id: int,
                         race_prediction: bool, race_stages: pd.DataFrame, race_total_distances: dict[int, float],
                         race_total_elevation_gains: dict[int, float], stages_general: pd.DataFrame) -> pd.DataFrame:
     global stages_cols
+    stages_agg_record = stages_aggregation_function(race_stages)
     if race_prediction:
-        event_record = stages_aggregation_function(race_stages)
+        event_record = stages_agg_record
     else:
         event_record = dict(stages_general.loc[event_id])
+        event_record = add_stages_agg_columns(event_record, stages_agg_record)
         event_record['race_total_distance'] = race_total_distances[
             race_id] if race_id in race_total_distances else None
         event_record['race_total_elevation_gain'] = race_total_elevation_gains[
