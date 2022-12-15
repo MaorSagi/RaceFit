@@ -199,9 +199,11 @@ def drop_unnecessary_features(X: pd.DataFrame,
 
 
 def handle_score_model_split(params, X, y) -> tuple[Union[float, pd.DataFrame], ...]:
-    if params['score_model_split'] is None:
-        return X, y, pd.DataFrame(), pd.DataFrame()
     split_fraction = params['score_model_split']
+    if split_fraction is None:
+        return X, y, pd.DataFrame(), pd.DataFrame()
+    if split_fraction == 1:
+        return X, y, X, y
     races_ids = X[RACE_ID_FEATURE].drop_duplicates()
     sampled_races_ids = races_ids.sample(frac=split_fraction, random_state=1)
     X_s = X[X[RACE_ID_FEATURE].isin(sampled_races_ids.values)]
@@ -510,20 +512,24 @@ def append_model_results(data_files: str, exec_dir_path: str, raw_data_dir: str,
             append_row_to_csv(f'{exec_dir_path}/{FINAL_MODEL_RESULTS_FILE_NAME}', result_df.iloc[i],
                               result_df.columns)
     else:
-        error_row = {}
-        raw_data_list = ast.literal_eval(raw_data_dir)
-        for i in range(len(RAW_DATA_COLS)):
-            error_row[RAW_DATA_COLS[i]] = raw_data_list[i]
+        if not APPEND_RESULTS_WITHOUT_SCORE_MODEL:
+            try:
+                error_row = {}
+                raw_data_list = ast.literal_eval(raw_data_dir)
+                for i in range(len(RAW_DATA_COLS)):
+                    error_row[RAW_DATA_COLS[i]] = raw_data_list[i]
 
-        data_list = ast.literal_eval(data_dir)
-        for i in range(len(DATA_COLS)):
-            error_row[DATA_COLS[i]] = data_list[i]
+                data_list = ast.literal_eval(data_dir)
+                for i in range(len(DATA_COLS)):
+                    error_row[DATA_COLS[i]] = data_list[i]
 
-        models_list = ast.literal_eval(model_dir)
-        for i in range(len(MODELS_COLS)):
-            error_row[MODELS_COLS[i]] = models_list[i]
+                models_list = ast.literal_eval(model_dir)
+                for i in range(len(MODELS_COLS)):
+                    error_row[MODELS_COLS[i]] = models_list[i]
+                append_row_to_csv(f'{exec_dir_path}/{ERROR_PARAMS_FILE_NAME}', error_row)
+            except:
+                log(f'Problem to create error row, dir: {model_dir}, params: {error_row}', 'ERROR', log_path=EXEC_PATH)
         log(f'Problem to append results, params: {error_row}', 'ERROR', log_path=EXEC_PATH)
-        append_row_to_csv(f'{exec_dir_path}/{ERROR_PARAMS_FILE_NAME}', error_row)
 
 
 def append_results_from_files(exec_dir_path: str) -> None:

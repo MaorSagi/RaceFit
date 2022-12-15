@@ -344,10 +344,9 @@ strava_features_names_dict = {k: v for k, v in
 BAR_PLOT_COLORS_DICT = {'race': '#1e90ff', 'stage': '#1e90ff', 'workouts': '#7eb54e', 'cyclist': '#f39C12'}
 
 ONE_DAY_RACES, MAJOR_TOURS, GRAND_TOURS = "One Day Races", "Major Tours", "Grand Tours"
-
 curve_factor_x = 'recalls'  # 'precision_recall_curve'
 curve_factor_y = 'precisions'
-EXEC_NAME = "Dec 5 - race prediction"  # "Sep 6-rerun - J paper results"#
+EXEC_NAME = "Dec 5 - stage prediction"  # "Sep 6-rerun - J paper results"#
 EXEC_BASE_PATH = f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"#f"./executions/{EXEC_NAME}"  # f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"
 WORKOUTS_SRC = 'STRAVA'  # 'STRAVA'
 agg_func = 'SmartAgg'
