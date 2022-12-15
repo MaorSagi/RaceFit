@@ -795,15 +795,15 @@ if __name__ == '__main__':
         # baseline_results=baseline_results[baseline_results['iteration']>=38]
         # model_results=model_results[model_results['iteration']>=38]
 
-        model_results = model_results[model_results['time_window'] == 5]
-        model_results['col_threshold'] = model_results['col_threshold'].apply(str)
-        model_results = model_results[model_results['col_threshold'] == '0.4']
+        # model_results = model_results[model_results['time_window'] == 5]
+        # model_results['col_threshold'] = model_results['col_threshold'].apply(str)
+        # model_results = model_results[model_results['col_threshold'] == '0.4']
         # model_results = model_results[model_results['imputer_workouts'] == 'without']
 
-        if with_baseline:
-            baseline_results = baseline_results[baseline_results['time_window'] == 5]
-            baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(str)
-            baseline_results = baseline_results[baseline_results['col_threshold'] == '0.4']
+        # if with_baseline:
+            # baseline_results = baseline_results[baseline_results['time_window'] == 5]
+            # baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(str)
+            # baseline_results = baseline_results[baseline_results['col_threshold'] == '0.4']
             # baseline_results = baseline_results[baseline_results['imputer_workouts'] == 'without']
 
     if PLOT_TIME:
@@ -820,7 +820,7 @@ if __name__ == '__main__':
         #     model_results = model_results[model_results['imputer'] == best_params_dict['imputer']]
         #     model_results = model_results[model_results['scaler'] == best_params_dict['scaler']]
         #     model_results = model_results[model_results['time_window'] == 5]
-        model_results['col_threshold'] = model_results['col_threshold'].apply(str)
+        # model_results['col_threshold'] = model_results['col_threshold'].apply(str)
         # model_results['row_threshold'] = model_results['row_threshold'].apply(str)
         #     model_results = model_results[model_results['row_threshold'] == '0.7']
         #     model_results = model_results[model_results['col_threshold'] == '0.7']
@@ -829,8 +829,8 @@ if __name__ == '__main__':
         #         baseline_results = baseline_results[baseline_results['scaler'] == best_params_dict['scaler']]
         #         baseline_results = baseline_results[baseline_results['imputer'] == best_params_dict['imputer']]
         #         baseline_results = baseline_results[baseline_results['time_window'] == 5]
-        if with_baseline:
-            baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(str)
+        # if with_baseline:
+            # baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(str)
             # baseline_results['row_threshold'] = baseline_results['row_threshold'].apply(str)
         #         baseline_results = baseline_results[baseline_results['row_threshold'] == '0.7']
         #         baseline_results = baseline_results[baseline_results['col_threshold'] == '0.7']

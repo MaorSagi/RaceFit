@@ -369,7 +369,7 @@ PLOT_AUC_PR = False
 
 AUC_PR_INTERACTION = False
 
-PLOT_EXPR_RESULTS = False
+PLOT_EXPR_RESULTS = True
 with_baseline = True
 
 result_list = []  # [f"{EXEC_BASE_PATH}/['without', 5, 'STRAVA', 'Israel - Premier Tech']/[0.4, 'SimpleImputer']/['CatBoost']/ModelResults.csv"]  # [f"{EXEC_BASE_PATH}/[0.7, 0.7, 'SimpleImputer', 'without', 5, 'SmartAgg', 'TP', 'Israel - Premier Tech']/['CatBoost', None]/ModelResults.csv"]
@@ -414,8 +414,8 @@ params_to_plot = {'imputer': 'Imputer Type',
                   # 'k_clusters':'Number of Clusters',
                   # 'result_consideration':'Results Consideration',
                   # 'row_threshold': 'Row Threshold',
-                  # 'col_threshold': 'Column Threshold',
-                  # 'time_window': 'Time Window Size'
+                  'col_threshold': 'Column Threshold',
+                  'time_window': 'Time Window Size'
                   }
 imputation_labels = {'without': 'Without imputation', 'SimpleImputer': 'With imputation - SimpleImputer',
                      'KNNImputer': 'With imputation - KNNImputer'}  # {'without': 'Without imputation', 'SimpleImputer': 'With imputation'}
