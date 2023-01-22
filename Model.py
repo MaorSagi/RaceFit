@@ -1,8 +1,10 @@
 import ast
+import os.path
 import pickle
 import joblib
 import pandas as pd
 
+from DataManager import team_names_dict, init_teams_dicts
 from utils import *
 
 
@@ -148,7 +150,7 @@ def sort_transform_data(X, y, cyclist_stage_predict, params):
 def train(iteration: int, params: dict[str: Union[str, int, tuple[str, object]]],
           cyclists: pd.DataFrame,
           stages: pd.DataFrame) -> None:
-    X, y, model_name, overwrite, result_consideration = extract_training_parameters(
+    X, y, model_name, score_model_name, overwrite, result_consideration = extract_training_parameters(
         cyclists, params, stages)
     X, y, X_s, y_s = handle_score_model_split(params, X, y)
     train_first_level_model = is_second_model_off(params)
@@ -159,9 +161,14 @@ def train(iteration: int, params: dict[str: Union[str, int, tuple[str, object]]]
     else:
         cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, get_models_path(params),
                                                         MODEL)
+        trained_model_path = get_score_models_path(params)
+        model_filename = f"{iteration + 1}_{score_model_name}.pkl"
+        model_full_path = f'{trained_model_path}/{model_filename}'
+        if is_file_exists_and_should_not_be_changed(overwrite, model_full_path):
+            return
         X_s, y_s = sort_transform_data(X_s, y_s, cyclist_stage_predict, params)
-        fit_model(X_s, y_s, iteration, model_name, overwrite, params, result_consideration,
-                  get_score_models_path(params),
+        fit_model(X_s, y_s, iteration, score_model_name, overwrite, params, result_consideration,
+                  trained_model_path,
                   SCORE_MODEL)
 
 
@@ -181,6 +188,9 @@ def fit_model(X, y, iteration, model_name, overwrite, params, result_considerati
         X_new = drop_unnecessary_features(X, params)
         if result_consideration:
             X_new, y = duplicate_high_results_records(X_new, y, result_consideration)
+        if model_name in ['Logistic','DecisionTree','RandomForest']:
+            X_new = X_new.dropna()
+            y = y.loc[X_new.index]
         train_func = params[model_type][1]['train']
         train_func(model, X_new, y)
         pickle.dump(model, open(model_full_path, 'wb'))
@@ -201,8 +211,6 @@ def drop_unnecessary_features(X: pd.DataFrame,
 def handle_score_model_split(params, X, y) -> tuple[Union[float, pd.DataFrame], ...]:
     split_fraction = params['score_model_split']
     if split_fraction is None:
-        return X, y, pd.DataFrame(), pd.DataFrame()
-    if split_fraction == 1:
         return X, y, X, y
     races_ids = X[RACE_ID_FEATURE].drop_duplicates()
     sampled_races_ids = races_ids.sample(frac=split_fraction, random_state=1)
@@ -218,9 +226,10 @@ def extract_training_parameters(cyclists: pd.DataFrame, params: dict[str: Union[
     overwrite = params['overwrite']
     result_consideration = params['result_consideration']
     model_name = params['model'][0]
+    score_model_name = params['score_model'][0]
     y = stages['participated']
     X = pd.concat([cyclists, stages], axis=1).drop(columns='participated')
-    return X, y, model_name, overwrite, result_consideration
+    return X, y, model_name, score_model_name, overwrite, result_consideration
 
 
 def fill_pred_matrix(X_test, y_test, y_prob, pred_matrix, group_feature):
@@ -255,7 +264,7 @@ def is_second_model_on(params):
 @time_wrapper
 def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
              params: dict[str: Union[str, int, tuple[str, object]]]) -> dict[str:Union[float, list[float], str], ...]:
-    model_name, race_prediction, races_cyclist_matrix, \
+    model_name, score_model_name, race_prediction, races_cyclist_matrix, \
     stages_cyclist_matrix = init_parameters_for_eval_func(params)
 
     stages_cyclists_pred_matrix, _ = init_pred_matrix(X_test, stages_cyclist_matrix, STAGE_ID_FEATURE, race_prediction)
@@ -271,8 +280,13 @@ def evaluate(iteration: int, X_test: pd.DataFrame, y_test: pd.DataFrame,
     else:
         cyclist_stage_predict = lambda x: model_predict(x, iteration, model_name, params, get_models_path(params),
                                                         MODEL)
+        trained_model_path = get_score_models_path(params)
+        model_filename = f"{iteration + 1}_{score_model_name}.pkl"
+        model_full_path = f'{trained_model_path}/{model_filename}'
+        if not os.path.exists(model_full_path):
+            return
         X_s, y_s = sort_transform_data(X_test, y_test, cyclist_stage_predict, params)
-        y_prob = model_predict(X_s, iteration, model_name, params, get_score_models_path(params), SCORE_MODEL)
+        y_prob = model_predict(X_s, iteration, score_model_name, params, get_score_models_path(params), SCORE_MODEL)
         race_prediction = True
         X_test, y_test = X_s, y_s
 
@@ -463,8 +477,9 @@ def init_parameters_for_eval_func(params: dict[str: Union[str, int, tuple[str, o
     stages_cyclist_matrix = import_data_from_csv(stages_matrix_path)
     races_cyclist_matrix = import_data_from_csv(races_matrix_path)
     model_name = params['model'][0]
+    score_model_name = params['score_model'][0]
     race_prediction = params['race_prediction'] if 'race_prediction' in params else False
-    return model_name, race_prediction, races_cyclist_matrix, stages_cyclist_matrix
+    return model_name, score_model_name, race_prediction, races_cyclist_matrix, stages_cyclist_matrix
 
 
 def get_models_path(params: dict[str: Union[str, int, tuple[str, object]]]) -> str:
@@ -497,24 +512,35 @@ def get_expr_loop_args(eval_model, train_eval, train_model, params):
     return model_results_path, prediction_matrix_path, trained_model_path, logging_action_name, evaluate_funcs, train_func
 
 
-def append_baselines_results(data_files: str, exec_dir_path: str) -> None:
+def append_baselines_results(data_files: str, exec_dir_path: str, file_suffix: int, team_name: str = None) -> int:
     result_df = pd.read_csv(data_files)
+    file_suffix = test_size_and_get_suffix(exec_dir_path, FINAL_BASELINES_FILE_NAME, file_suffix, team_name)
     for i in range(len(result_df)):
-        append_row_to_csv(f'{exec_dir_path}/{FINAL_BASELINES_FILE_NAME}', result_df.iloc[i],
+        append_row_to_csv(get_final_result_file_name(exec_dir_path,FINAL_BASELINES_FILE_NAME, file_suffix, team_name), result_df.iloc[i],
                           result_df.columns)
+    return file_suffix
 
 
-def append_model_results(data_files: str, exec_dir_path: str, raw_data_dir: str, data_dir: str, model_dir: str) -> None:
+def get_final_result_file_name(exec_dir_path,file_name, file_suffix, team_name):
+    final_results_file = f'{exec_dir_path}/{file_name} {file_suffix}'
+    if team_name:
+        final_results_file += f' {team_name}'
+    return final_results_file.replace('.csv','')+".csv"
+
+
+def append_model_results(data_files: str, exec_dir_path: str, raw_data_dir: str, data_dir: str, model_dir: str,
+                         file_suffix: int, team_name: str = None) -> int:
     results_path = f'{data_files}/{MODEL_RESULTS_FILE_NAME}'
+    file_suffix = test_size_and_get_suffix(exec_dir_path, FINAL_MODEL_RESULTS_FILE_NAME, file_suffix, team_name)
     if os.path.exists(results_path):
         result_df = pd.read_csv(results_path)
         for i in range(len(result_df)):
-            append_row_to_csv(f'{exec_dir_path}/{FINAL_MODEL_RESULTS_FILE_NAME}', result_df.iloc[i],
+            append_row_to_csv(get_final_result_file_name(exec_dir_path,FINAL_MODEL_RESULTS_FILE_NAME, file_suffix, team_name), result_df.iloc[i],
                               result_df.columns)
     else:
+        error_row = {}
         if not APPEND_RESULTS_WITHOUT_SCORE_MODEL:
             try:
-                error_row = {}
                 raw_data_list = ast.literal_eval(raw_data_dir)
                 for i in range(len(RAW_DATA_COLS)):
                     error_row[RAW_DATA_COLS[i]] = raw_data_list[i]
@@ -528,26 +554,45 @@ def append_model_results(data_files: str, exec_dir_path: str, raw_data_dir: str,
                     error_row[MODELS_COLS[i]] = models_list[i]
                 append_row_to_csv(f'{exec_dir_path}/{ERROR_PARAMS_FILE_NAME}', error_row)
             except:
-                log(f'Problem to create error row, dir: {model_dir}, params: {error_row}', 'ERROR', log_path=EXEC_PATH)
+                log(f'Problem to create error row, path doesnt exist: {results_path}, params: {error_row}', 'ERROR', log_path=EXEC_PATH)
         log(f'Problem to append results, params: {error_row}', 'ERROR', log_path=EXEC_PATH)
+    return file_suffix
 
 
-def append_results_from_files(exec_dir_path: str) -> None:
+def test_size_and_get_suffix(exec_dir_path,file_name, file_suffix, team_name):
+    final_results_file = get_final_result_file_name(exec_dir_path,file_name, file_suffix, team_name)
+    if os.path.exists(final_results_file):
+        results_file_size = os.path.getsize(final_results_file)
+        if results_file_size > MAX_FILE_SIZE:
+            file_suffix += 1
+    return file_suffix
+
+
+def append_results_from_files(exec_dir_path: str, params: dict[str: Union[str, int, tuple[str, object]]]) -> None:
+    i_model, i_baseline = 0, 0
+    init_teams_dicts()
+    team_name = team_names_dict[params['team_id']] if params['team_id'] is not None else None
     for raw_data_dir in os.listdir(exec_dir_path):
         raw_data_dir_path = os.path.join(exec_dir_path, raw_data_dir)
         if os.path.isdir(raw_data_dir_path):
+            if team_name is not None:
+                if team_name not in raw_data_dir:
+                    continue
             for data_dir in os.listdir(raw_data_dir_path):
                 data_dir_path = os.path.join(raw_data_dir_path, data_dir)
                 if os.path.isdir(data_dir_path):
                     for file in os.listdir(data_dir_path):
                         data_files = os.path.join(data_dir_path, file)
                         if file == BASELINES_FILE_NAME:
-                            append_baselines_results(data_files, exec_dir_path)
+                            i_baseline = append_baselines_results(data_files, exec_dir_path,
+                                                                  i_baseline, team_name=team_name)
                         elif os.path.isdir(data_files):
                             for model_file in os.listdir(data_files):
                                 model_dir = os.path.join(data_files, model_file)
                                 if os.path.isdir(model_dir):
-                                    append_model_results(model_dir, exec_dir_path, raw_data_dir, data_dir, model_file)
+                                    i_model = append_model_results(model_dir, exec_dir_path, raw_data_dir,
+                                                                   data_dir,
+                                                                   model_file, i_model, team_name=team_name)
 
 
 def fit_clustering_algorithm(clustering_algorithm: Callable, k_clusters: int) -> None:

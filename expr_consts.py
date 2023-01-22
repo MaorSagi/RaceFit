@@ -1,15 +1,16 @@
 APPEND_RESULTS, RUN_EXPERIMENTS = "append_results", "run_experiments"
 EXPR_TASK = RUN_EXPERIMENTS
-EXEC_NAME = 'Dec 5 - race prediction'
-EXECS_DIR_PATH = 'executions'#'M:\Maor\Expr\maors_code\executions'
+EXEC_NAME = 'Jan 17 - weighted mean'
+EXECS_DIR_PATH = 'executions'#'M:\Maor\Expr\maors_code\executions'#'executions'#
 EXEC_PATH = f'{EXECS_DIR_PATH}/{EXEC_NAME}'
 ALLOCATION_MATRICES_PATH = 'allocation_matrices'
 SIMILARITY_COEFF = 10000000000000000.0
+MAX_FILE_SIZE=1_500_000_000
 NUM_OF_POINTS = 40
 K_POINTS = 10
 DECISION_TIME_GAP = 1
 WITHOUT_MIN_MAX_COLS = True
-APPEND_RESULTS_WITHOUT_SCORE_MODEL = True
+APPEND_RESULTS_WITHOUT_SCORE_MODEL = False
 
 
 MODEL_RESULTS_FILE_NAME, FINAL_MODEL_RESULTS_FILE_NAME = 'ModelResults.csv', 'Final_Model_Results.csv'
@@ -121,7 +122,7 @@ TO_FILTER_STAGES = ['race_date', 'stage_date', 'stage_name', 'stage_number', 'ra
 NON_AGG_RACE_COLS = set(TO_FILTER_STAGES) - {'race_year', 'nation', 'parcours_type', 'start_time'}
 
 NON_AGG_CYCLIST_COLS = ['cyclist_id', 'workout_datetime']
-START_YEAR_IN, END_YEAR_EX = 2017, 2023
+START_YEAR_IN, END_YEAR_EX = 2016, 2023
 
 TP_TO_FILTER_CYCLISTS = ['workout_date', 'tp_link', 'workout_week', 'workout_month', 'tags',
                          'start_time', 'last_modified_date', 'workout_tp_id', 'workout_type',

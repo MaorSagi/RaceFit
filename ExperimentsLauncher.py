@@ -334,13 +334,32 @@ def write_results_to_file(results_path: str, iteration: int,
             total_scores[k] = params_cpy[k]
     append_row_to_csv(results_path, total_scores)
 
+def extract_append_results_exec_params() -> None:
+    parser = init_append_results_exec_parser()
+    init_append_results_params_from_parser(parser)
 
-def extract_exec_params() -> None:
-    parser = init_exec_parser()
-    init_params_from_parser(parser)
+def init_append_results_exec_parser() -> ArgumentParser:
+    parser = ArgumentParser()
+    parser.add_argument('-o', '--overwrite', type=int)
+    parser.add_argument('-i', '--index', type=int)
+    parser.add_argument('-ti', '--team-id', type=int)
+    return parser
 
 
-def init_exec_parser() -> ArgumentParser:
+
+def extract_experiments_exec_params() -> None:
+    parser = init_experiments_exec_parser()
+    init_experiments_params_from_parser(parser)
+
+def init_append_results_params_from_parser(parser: ArgumentParser) -> None:
+    global params
+    args = parser.parse_args()
+    params = dict(index=args.overwrite if args.overwrite else None,
+                  overwrite=args.overwrite if args.overwrite else None,
+                  team_id=args.team_id)
+
+
+def init_experiments_exec_parser() -> ArgumentParser:
     parser = ArgumentParser()
     parser.add_argument('-r', '--row-threshold', type=str)
     parser.add_argument('-c', '--col-threshold', type=str)
@@ -369,7 +388,7 @@ def init_exec_parser() -> ArgumentParser:
     return parser
 
 
-def init_params_from_parser(parser: ArgumentParser) -> None:
+def init_experiments_params_from_parser(parser: ArgumentParser) -> None:
     global params
     from DataManager import aggregation_functions
     args = parser.parse_args()
@@ -420,9 +439,10 @@ if __name__ == '__main__':
     create_dir_if_not_exist(EXEC_PATH)
     create_dir_if_not_exist(ALLOCATION_MATRICES_PATH)
     if EXPR_TASK == APPEND_RESULTS:
-        append_results_from_files(EXEC_PATH)
+        extract_append_results_exec_params()
+        append_results_from_files(EXEC_PATH, params)
     else:
-        extract_exec_params()
+        extract_experiments_exec_params()
         race_prediction = params['race_prediction']
         workouts_source = params['workouts_source']
         team_id = params['team_id']

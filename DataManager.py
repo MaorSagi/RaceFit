@@ -157,7 +157,7 @@ def init_workouts(workouts_source: Literal[TP_SRC, STRAVA_SRC]) -> None:
     workouts = pd.read_csv(
         './db/tp_workouts.csv') if TP_SRC in workouts_source else pd.read_csv('./db/strava_workouts.csv')
     workouts['workout_date'] = pd.to_datetime(workouts['workout_date']).apply(lambda dt: dt.date())
-    workouts = workouts[workouts['workout_date'].apply(lambda dt: dt.year) >= START_YEAR_IN - 1]
+    workouts = workouts[workouts['workout_date'].apply(lambda dt: dt.year) >= START_YEAR_IN]
     workouts = workouts[workouts['workout_date'].apply(lambda dt: dt.year) < END_YEAR_EX]
 
 
@@ -477,6 +477,8 @@ def create_input_for_event(X: pd.DataFrame, Y: pd.DataFrame, cyclists_general: p
                            race_total_elevation_gains: dict[int, float], stages_general: pd.DataFrame,
                            time_window: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     cyclists_participation_in_event = input_row.drop(id_feature)
+    if event_id not in stages_general.index:
+        return X, Y
     race_stages = stages_general.loc[event_id]
     race_continent, race_date, race_id, race_location = get_races_details(race_stages)
     X_prev, Y_prev, cyclists_in_teams, \

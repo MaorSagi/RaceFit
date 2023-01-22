@@ -1,7 +1,9 @@
 titles = {'precisions': 'Precision@i', 'recalls': 'Recall@i', 'recalls_kn': 'Recall@(n+k)'}
+titles_short = {'precisions': 'pr', 'recalls_kn': 'r'}
+
 params = {
-    'row_threshold': 'Row Threshold',
-    'imputer_workouts': 'Workouts Imputer Type',
+    # 'row_threshold': 'Row Threshold',
+    # 'imputer_workouts': 'Workouts Imputer Type',
     'col_threshold': 'Column Threshold',
     'imputer': 'Imputer Type', 'scaler': 'Scaler Type',
     'time_window': 'Time Window',
@@ -24,7 +26,8 @@ TEAMS_RANKING_DICT = {'Team Jumbo-Visma': 1, 'UAE Team Emirates': 4, 'Groupama -
                       'AG2R Citroën Team': 12,
                       'Cofidis': 15, 'Movistar Team': 18, 'Lotto Fix All': 19, 'Israel - Premier Tech': 20,
                       'CCC Team': None}
-MISSING_WORKOUTS_TEAMS = {'UAE Team Emirates', 'Trek - Segafredo', 'Movistar Team'}
+TEAMS_TO_IGNORE = {'Cofidis', 'UAE Team Emirates', 'Trek - Segafredo', 'Movistar Team', 'CCC Team',
+                          'Lotto Fix All','AG2R Citroën Team'}
 
 EXTRA_LIM_GAP = 0.008
 
@@ -347,9 +350,11 @@ ONE_DAY_RACES, MAJOR_TOURS, GRAND_TOURS = "One Day Races", "Major Tours", "Grand
 curve_factor_x = 'recalls'  # 'precision_recall_curve'
 curve_factor_y = 'precisions'
 EXEC_NAME = "Dec 5 - stage prediction"  # "Sep 6-rerun - J paper results"#
-EXEC_BASE_PATH = f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"#f"./executions/{EXEC_NAME}"  # f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"
+EXEC_BASE_PATH = f"./executions/{EXEC_NAME}"#f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"  #
 WORKOUTS_SRC = 'STRAVA'  # 'STRAVA'
+
 agg_func = 'SmartAgg'
+RACEFIT_CYCLIST_STAGE = "RaceFit - Stage-Cyclist"
 POPULARITY_IN_CONTINENT = "Popularity in continent"
 POPULARITY_IN_GENERAL = "Popularity in general"
 POPULARITY_IN_RACE_CLASS = "Popularity in race class"  # classification
@@ -358,68 +363,126 @@ baseline_algorithms = {"cyclist_popularity_ranking_in_team": POPULARITY_IN_GENER
                        "cyclist_popularity_ranking_in_continent_in_team": POPULARITY_IN_CONTINENT,
                        "cyclist_popularity_ranking_in_race_class_in_team": POPULARITY_IN_RACE_CLASS,
                        "cyclist_popularity_ranking_in_race_type_in_team": POPULARITY_IN_RACE_TYPE,
+                       RACEFIT_CYCLIST_STAGE: RACEFIT_CYCLIST_STAGE
                        }
 features_names_dict = tp_features_names_dict if WORKOUTS_SRC == 'TP' else strava_features_names_dict
 features_color_dict = {f: BAR_PLOT_COLORS_DICT[f.split()[0]] for f in features_names_dict.values()}
+LINE_WIDTH = 5
 
+
+
+WITHOUT_SCORE_MODEL = False
+PLOT_ALL_TEAMS_AVG = False  # None
 SINGLE_RACE_TYPE = None
-SINGLE_TEAM = None#"Israel - Premier Tech"  # "AG2R Citroën Team"  # "Israel - Premier Tech"
+SINGLE_TEAM = None#"Groupama - FDJ"#"Israel - Premier Tech"  # "AG2R Citroën Team"  # "Israel - Premier Tech"
 PLOT_AUC_PR = False
+MULTIPLE_FILES = False
+ZOOM_IN = None#{'x':(0,1),'y':(0,1)}
 
 AUC_PR_INTERACTION = False
 
 PLOT_EXPR_RESULTS = True
-with_baseline = True
+WITH_BASELINE = True
+WITH_MODEL_BASELINE=True
 
 result_list = []  # [f"{EXEC_BASE_PATH}/['without', 5, 'STRAVA', 'Israel - Premier Tech']/[0.4, 'SimpleImputer']/['CatBoost']/ModelResults.csv"]  # [f"{EXEC_BASE_PATH}/[0.7, 0.7, 'SimpleImputer', 'without', 5, 'SmartAgg', 'TP', 'Israel - Premier Tech']/['CatBoost', None]/ModelResults.csv"]
-baseline_results_path = f"{EXEC_BASE_PATH}/Final_Baselines_Results.csv"
-model_results_path = f"{EXEC_BASE_PATH}/Final_Model_Results.csv"
+baseline_results_path = f"{EXEC_BASE_PATH}/Final_Baselines_Results 0.csv"
+model_results_path = f"{EXEC_BASE_PATH}/Final_Model_Results 0.csv"
 
 PLOT_TIME = False
 top_i = 8
 
-PLOT_KN_RECALLS = True
+PLOT_KN_RECALLS = False
 xpoints = range(K_POINTS)
 
+# # global by stage without score
+# global_best_params_dict = {
+#     'col_threshold': '60%',  # None,#'0.5',
+#     'imputer': 'SimpleImputer',
+#     # 'imputer_workouts': 'without',
+#     # 'result_consideration':None,
+#     'time_window': 5,
+#     'model': 'CatBoost',
+#     # 'score_model': 'without',
+#     # 'score_model_split':None,
+#     # 'score_model':'CatBoost',
+# }
+
+
+# # global by race
+# global_best_params_dict = {
+#     'col_threshold': '40%',  # None,#'0.5',
+#     'imputer': 'SimpleImputer',
+#     # 'imputer_workouts': 'without',
+#     # 'result_consideration':None,
+#     'time_window': 3,
+#     'model': 'CatBoost',
+#     # 'score_model': 'without',
+#     # 'score_model_split':None,
+#     # 'score_model':'CatBoost',
+# }
+
+# global by stage with score
 global_best_params_dict = {
-    'col_threshold': '0.4',  # None,#'0.5',
+    'col_threshold': '60%',  # None,#'0.5',
     'imputer': 'SimpleImputer',
-    'imputer_workouts': 'without',
-    # 'result_consideration':'[4,2,1]',
+    # 'imputer_workouts': 'without',
+    # 'result_consideration':None,
     'time_window': 5,
     'model': 'CatBoost',
-    'score_model':'CatBoost',
+    'score_model': 'CatBoost',
+    'k_clusters':'C 3',
+    # 'score_model_split':None,
+    # 'score_model':'CatBoost',
 }
 
-team_best_params_dict = {'AG2R Citroën Team': {'col_threshold': '0.45'},
-                         'CCC Team': {'col_threshold': '0.45'},
-                         'Team Jumbo-Visma': {'col_threshold': '0.45'},
-                         'Lotto Fix All': {'col_threshold': '0.45'},
-                         'Israel - Premier Tech': {'col_threshold': '0.45'},
-                         'Cofidis': {'col_threshold': '0.45'},
-                         'Groupama - FDJ': {'col_threshold': '0.45'},
-                         'Movistar Team': {'col_threshold': '0.45'},
-                         'UAE Team Emirates': {'col_threshold': '0.45'},
-                         'Trek - Segafredo': {'col_threshold': '0.45'}
+# # BY RACE
+# team_best_params_dict = {'AG2R Citroën Team': {},
+#                          'CCC Team': {},
+#                          'Team Jumbo-Visma': {'time_window': 5},
+#                          'Lotto Fix All': {},
+#                          'Israel - Premier Tech': {'time_window': 7,'col_threshold': '60%'},
+#                          'Cofidis': {},
+#                          'Groupama - FDJ': {},
+#                          'Movistar Team': {},
+#                          'UAE Team Emirates': {},
+#                          'Trek - Segafredo': {}
+#                          }
+#
+
+# # BY STAGE
+team_best_params_dict = {'AG2R Citroën Team': {},
+                         'CCC Team': {},
+                         'Team Jumbo-Visma': {},
+                         'Lotto Fix All': {},
+                         'Israel - Premier Tech': {},
+                         'Cofidis': {},
+                         'Groupama - FDJ': {'col_threshold': '40%'},
+                         'Movistar Team': {},
+                         'UAE Team Emirates': {},
+                         'Trek - Segafredo': {}
                          }
 
-PLOT_ONLY_BEST = False
+PLOT_ONLY_BEST = False  # 'model'
+PLOT_ONLY_BEST_BY_TEAM = False
 
-params_to_plot = {'imputer': 'Imputer Type',
+params_to_plot = {
+                  # 'imputer': 'Imputer Type',
                   # 'imputer_workouts': 'Workouts Imputer Type',
-                  'model': 'Model',
-                  # 'score_model': 'Score Model',
+                  # 'model': 'Model',
+                  'score_model': 'Score Model',
                   # 'score_model_split':'Score model Split',
-                  # 'k_clusters':'Number of Clusters',
+                  'k_clusters': 'Number of Clusters',
                   # 'result_consideration':'Results Consideration',
                   # 'row_threshold': 'Row Threshold',
-                  'col_threshold': 'Column Threshold',
-                  'time_window': 'Time Window Size'
+                  # 'col_threshold': 'Column Threshold',
+                  # 'time_window': 'Time Window Size'
                   }
 imputation_labels = {'without': 'Without imputation', 'SimpleImputer': 'With imputation - SimpleImputer',
                      'KNNImputer': 'With imputation - KNNImputer'}  # {'without': 'Without imputation', 'SimpleImputer': 'With imputation'}
-model_labels = {'DecisionTree': 'Decision Tree', 'RandomForest': 'Random Forest', 'CatBoost': 'CatBoost', 'Logistic': 'Logistic Regression','without':'Without'}
-models_to_plot = ['RandomForest','DecisionTree', 'CatBoost', 'Logistic']
+model_labels = {'DecisionTree': 'Decision Tree', 'RandomForest': 'Random Forest', 'CatBoost': 'CatBoost',
+                'Logistic': 'Logistic Regression', 'without': 'Without'}
+models_to_plot = ['RandomForest', 'DecisionTree', 'CatBoost', 'Logistic']
 # BEST_RUN_MODEL_DIR = f"['{best_params_dict['model']}', None]"
 
 

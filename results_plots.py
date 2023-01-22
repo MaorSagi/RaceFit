@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 from sklearn.metrics import auc
+
+from expr_consts import SCORE_MODELS_COLS, MODELS_COLS
 from results_consts import *
 import matplotlib.pyplot as plt
 import matplotlib
@@ -19,7 +21,7 @@ stages = pd.read_csv('./db/filtered_stages.csv')
 races_number_of_days = {k: v['stage_id'] for k, v in
                         stages[['race_id', 'stage_id']].groupby('race_id').count().iterrows()}
 races_days_ranges = {ONE_DAY_RACES: range(1, 2), MAJOR_TOURS: range(2, 13), GRAND_TOURS: range(13, 22)}
-
+scores_cols_to_plot=['score_model_split']+SCORE_MODELS_COLS
 
 def plot_auc_interaction_results(curve_factor_x, curve_factor_y, param_1, param_2, model_results):
     for team in model_results['team_name'].unique():
@@ -54,7 +56,10 @@ def plot_auc_interaction_results(curve_factor_x, curve_factor_y, param_1, param_
         save_file_path += f'/{team}'
         create_dir_if_not_exist(save_file_path)
         if PLOT_ONLY_BEST:
-            path_to_save = f'{save_file_path}/{params[param_1]}, {params[param_2]} -  {titles[curve_factor_y]} - BEST.png'
+            if PLOT_ONLY_BEST_BY_TEAM:
+                path_to_save = f'{save_file_path}/{params[param_1]}, {params[param_2]} -  {titles[curve_factor_y]} - BEST BY TEAM.png'
+            else:
+                path_to_save = f'{save_file_path}/{params[param_1]}, {params[param_2]} -  {titles[curve_factor_y]} - BEST.png'
         else:
             path_to_save = f'{save_file_path}/{params[param_1]}, {params[param_2]} -  {titles[curve_factor_y]}.png'
         plt.savefig(path_to_save)
@@ -83,7 +88,10 @@ def plot_auc_results(curve_factor_x, curve_factor_y, model_results, baseline_res
         # if 'model' == param:
         plt.xticks(fontsize=9, rotation=-45)
         # plt.xlim(0, 1+EXTRA_LIM_GAP)
-        plt.ylim(0, 1 + EXTRA_LIM_GAP)
+        if ZOOM_IN:
+            plt.ylim(ZOOM_IN['y'][0], ZOOM_IN['y'][1] + EXTRA_LIM_GAP)
+        else:
+            plt.ylim(0, 1 + EXTRA_LIM_GAP)
         # plt.xticks(fontsize=9)
         ax.set_ylabel("AUC-PR")
         plt.title(f'AUCPR - {params[param]}')
@@ -107,8 +115,15 @@ def get_model_result_df(curve_factor_x, curve_factor_y, list_of_files_path=None,
     return model_results_df
 
 
-def get_baseline_result_df(curve_factor_x, curve_factor_y, baseline_results_path):
-    baseline_results_df = pd.read_csv(baseline_results_path)
+def get_baseline_result_df(curve_factor_x, curve_factor_y, list_of_files_path=None, total_results_path=None):
+    if list_of_files_path is not None:
+        baseline_results_df = pd.DataFrame()
+        for path in list_of_files_path:
+            baseline_results_df = pd.concat([baseline_results_df, pd.read_csv(path)])
+    elif total_results_path is not None:
+        baseline_results_df = pd.read_csv(total_results_path)
+    else:
+        raise ValueError('Baselines results source is missing')
     baseline_results_df[curve_factor_y] = baseline_results_df[curve_factor_y].apply(json.loads)
     baseline_results_df[curve_factor_x] = baseline_results_df[curve_factor_x].apply(json.loads)
     return baseline_results_df
@@ -216,32 +231,53 @@ def plot_time_results_at_i(curve_factor_y, top_i, model_results, baseline_result
             plt.show()
 
 
+def plot_pr_graphs(curve_factor_x, curve_factor_y, model_results, baseline_results=None,
+                   params_to_plot=params_to_plot, x_points=None, cut_edges=False, x_label=None, team=None):
+    if (team is not None) and (SINGLE_TEAM is not None) and SINGLE_TEAM != team:
+        return
+    elif WITH_MODEL_BASELINE:
+        without_score_model_results = model_results[model_results['score_model'].isna()]
+        if team is None:
+            without_score_model_results, _ = get_all_teams_best_results_df(without_score_model_results, baseline_results)
+        else:
+            without_score_model_results, _ = get_best_results_df(without_score_model_results, baseline_results,team)
+        without_score_model_results['baseline'] = RACEFIT_CYCLIST_STAGE
+        baseline_results = pd.concat([baseline_results, without_score_model_results])
+
+    if SINGLE_RACE_TYPE:
+        model_relevant_races_pred = model_results['race_id'].map(races_number_of_days).isin(
+            races_days_ranges[SINGLE_RACE_TYPE])
+        baselines_relevant_races_pred = baseline_results['race_id'].map(races_number_of_days).isin(
+            races_days_ranges[SINGLE_RACE_TYPE])
+        model_results = model_results.loc[model_relevant_races_pred]
+        baseline_results = baseline_results.loc[baselines_relevant_races_pred]
+    if PLOT_ONLY_BEST:
+        model_results_team, baseline_results_team = get_best_results_df(model_results, baseline_results,team,with_score_params=True)
+        plot_graphs(baseline_results_team, curve_factor_x, curve_factor_y, cut_edges, model_results_team, team,
+                    x_label, x_points, params_to_plot)
+    else:
+        for param in params_to_plot:
+            if WITHOUT_SCORE_MODEL or (param in scores_cols_to_plot):
+                plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, model_results, team,
+                            x_label, x_points, params_to_plot, param=param)
+
+
 def plot_pr_results(curve_factor_x, curve_factor_y, model_results, baseline_results=None,
                     params_to_plot=params_to_plot, x_points=None, cut_edges=False, x_label=None):
     plt.style.use('ggplot')
     if x_points is not None:
         model_results[curve_factor_y] = model_results[curve_factor_y].apply(lambda x: json.loads(x))
-        if with_baseline:
+        if WITH_BASELINE:
             baseline_results[curve_factor_y] = baseline_results[curve_factor_y].apply(lambda x: json.loads(x))
 
     # for w_src in workout_src_dict.keys():
-    for team in model_results['team_name'].unique():
-        if (SINGLE_TEAM is not None) and SINGLE_TEAM != team:
-            continue
-        if SINGLE_RACE_TYPE:
-            model_relevant_races_pred = model_results['race_id'].map(races_number_of_days).isin(
-                races_days_ranges[SINGLE_RACE_TYPE])
-            baselines_relevant_races_pred = baseline_results['race_id'].map(races_number_of_days).isin(
-                races_days_ranges[SINGLE_RACE_TYPE])
-            model_results = model_results.loc[model_relevant_races_pred]
-            baseline_results = baseline_results.loc[baselines_relevant_races_pred]
-        if PLOT_ONLY_BEST:
-            plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, model_results, 'model', team,
-                        x_label, x_points, params_to_plot)
-        else:
-            for param in params_to_plot:
-                plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, model_results, param, team,
-                            x_label, x_points, params_to_plot)
+    if PLOT_ALL_TEAMS_AVG:
+        plot_pr_graphs(curve_factor_x, curve_factor_y, model_results, baseline_results,
+                       params_to_plot, x_points, cut_edges, x_label)
+    else:
+        for team in model_results['team_name'].unique():
+            plot_pr_graphs(curve_factor_x, curve_factor_y, model_results, baseline_results,
+                           params_to_plot, x_points, cut_edges, x_label, team)
 
 
 def create_dir_if_not_exist(save_file_path):
@@ -249,9 +285,13 @@ def create_dir_if_not_exist(save_file_path):
         os.mkdir(save_file_path)
 
 
-def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, model_results, param, team, x_label,
-                x_points, params):
-    print(f'{team} Precision - Recall {params[param]}')
+def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, model_results, team, x_label,
+                x_points, params, param=None):
+    if team is not None:
+        log_msg = f'{team} Precision - Recall {params[param] if param else "Best Parameters"}'
+    else:
+        log_msg = f'Precision - Recall {params[param] if param else "Best Parameters"}'
+    print(log_msg)
     # if param != 'model':
     #     continue
     matplotlib.rc('figure', figsize=(15, 15))
@@ -259,7 +299,102 @@ def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, mod
     # Model graphs
     # sep_model_results_df = model_results[model_results['workouts_source'] == workout_src_dict[w_src]]
     sep_model_results_df = model_results
-    grouped_results = sep_model_results_df[sep_model_results_df['team_name'] == team].groupby(param)
+    sep_model_results_to_group = sep_model_results_df
+    if team is not None:
+        sep_model_results_to_group = sep_model_results_df[sep_model_results_df['team_name'] == team]
+    plot_graph(ax, curve_factor_x, curve_factor_y, cut_edges, param, sep_model_results_to_group, x_points)
+    if baseline_results is not None:
+        # Baselines graphs
+        baseline_results_to_group = baseline_results
+        if team is not None:
+            baseline_results_to_group = baseline_results[baseline_results['team_name'] == team]
+        grouped_results = baseline_results_to_group.groupby(['baseline'])
+        for n, g in grouped_results:
+            if (param not in scores_cols_to_plot+[None]) and n==RACEFIT_CYCLIST_STAGE:
+                continue
+            precision_points = (np.array(list(g[curve_factor_y])).sum(
+                axis=0) / len(g))
+            precision_points = precision_points[1:-10] if cut_edges else precision_points
+            if x_points is None:
+                recall_points = (np.array(list(g[curve_factor_x])).sum(
+                    axis=0) / len(g))
+            else:
+                recall_points = x_points
+            recall_points = recall_points[1:-10] if cut_edges else recall_points
+            # ax.plot(list(recall_new_points), precision_new_points,
+            #         label=f'{baseline} baseline')
+            ax.plot(recall_points, precision_points,
+                    label=f'{baseline_algorithms[n]} baseline', linewidth=LINE_WIDTH)
+            print(f"Baseline Precision: {[round(e, 2) for e in precision_points]}")
+            print(f"Baseline Recall: {[round(e, 2) for e in recall_points]}")
+    # if 'model' == param:
+    #     plt.xticks(fontsize=9, rotation=-45)
+    if x_points is None:
+        if ZOOM_IN:
+            plt.xlim(ZOOM_IN['x'][0], ZOOM_IN['x'][1] + EXTRA_LIM_GAP)
+        else:
+            plt.xlim(0, 1 + EXTRA_LIM_GAP)
+    else:
+        # deprecated code
+        x_points = x_points[1:-10] if cut_edges else x_points
+        plt.xlim(x_points[0] - 0.0001, x_points[-2] + EXTRA_LIM_GAP)
+    if ZOOM_IN:
+        plt.ylim(ZOOM_IN['y'][0], ZOOM_IN['y'][1] + EXTRA_LIM_GAP)
+    else:
+        plt.ylim(0, 1 + EXTRA_LIM_GAP)
+    plt.xticks(fontsize=42)
+    plt.yticks(fontsize=42)
+    ax.set_ylabel(titles[curve_factor_y], fontsize=44)
+    if x_points is None:
+        ax.set_xlabel(titles[curve_factor_x], fontsize=44)
+    elif x_label is not None:
+        ax.set_xlabel(x_label, fontsize=44)
+    # plt.title(f'{params[param]} - {titles[curve_factor_y]}')
+    plt.legend(prop={"size": 34})  # , loc="upper right")
+    save_file_path = f'results_plots/{EXEC_NAME}'
+    # pic_name=f"{params[param]} -  {titles[curve_factor_y]}"
+    if param:
+        pic_name = f"{param}_{titles_short[curve_factor_y]}"
+    else:
+        pic_name = f"_{titles_short[curve_factor_y]}"
+        # pic_name = f"{sep_model_results_df.iloc[0][['time_window','col_threshold','imputer','model']].values}_{titles_short[curve_factor_y]}"
+    create_dir_if_not_exist(save_file_path)
+    file_name = ''
+    # file_name = f'{WORKOUTS_SRC} '
+    save_file_path += f'/{WORKOUTS_SRC}'
+    create_dir_if_not_exist(save_file_path)
+    if team is not None:
+        save_file_path += f'/{team}'
+        # file_name+=f'{team} '
+        create_dir_if_not_exist(save_file_path)
+    if WITHOUT_SCORE_MODEL:
+        save_file_path += f'/WITHOUT_SCORE_MODEL'
+        create_dir_if_not_exist(save_file_path)
+    if SINGLE_RACE_TYPE:
+        save_file_path += f'/{SINGLE_RACE_TYPE}'
+        # file_name += f'{SINGLE_RACE_TYPE} '
+        create_dir_if_not_exist(save_file_path)
+    if PLOT_ONLY_BEST:
+        if PLOT_ONLY_BEST:
+            if PLOT_ONLY_BEST_BY_TEAM:
+                file_name += f"{pic_name}-BEST BY TEAM.png"
+            else:
+                file_name += f"{pic_name}-BEST.png"
+        save_file_path += f'/{file_name}'
+    else:
+        file_name += f"{pic_name}.png"
+        save_file_path += f'/{file_name}'
+    plt.savefig(save_file_path)
+    plt.gcf().subplots_adjust(left=0.115, bottom=0.09, top=0.97, right=0.96)
+    plt.show()
+
+
+def plot_graph(ax, curve_factor_x, curve_factor_y, cut_edges, param, sep_model_results_to_group, x_points):
+
+    if param is not None:
+        grouped_results = sep_model_results_to_group.groupby(param)
+    else:
+        grouped_results = [("RaceFit",sep_model_results_to_group)]
     if x_points is None:
         model_mean_results = pd.DataFrame(columns=[param, curve_factor_y, curve_factor_x])
     else:
@@ -289,68 +424,19 @@ def plot_graphs(baseline_results, curve_factor_x, curve_factor_y, cut_edges, mod
         label = r[param]
         if param == 'imputer':
             label = f"{imputation_labels[label]}"
-            ax.plot(recall_points, precision_points, label=label, linewidth=5, color=colors_imputation[j])
+            ax.plot(recall_points, precision_points, label=label, linewidth=LINE_WIDTH, color=colors_imputation[j])
         elif param in ['model', 'score_model']:
             label = f"{model_labels[label]}"
-            ax.plot(recall_points, precision_points, label=label, linewidth=5)
+            ax.plot(recall_points, precision_points, label=label, linewidth=LINE_WIDTH)
+        elif param == 'time_window':
+            label = f"{label} weeks"
+            ax.plot(recall_points, precision_points, label=label, linewidth=LINE_WIDTH)
         else:
-            ax.plot(recall_points, precision_points, label=label, linewidth=5)
+            ax.plot(recall_points, precision_points, label=label, linewidth=LINE_WIDTH)
         print(f"Model Precision: {[round(e, 2) for e in precision_points]}")
         print(f"Model Recall: {[round(e, 2) for e in recall_points]}")
         # ax.plot(list(recall_new_points), precision_new_points, label=r[param])
         j += 1
-    if baseline_results is not None:
-        # Baselines graphs
-        grouped_results = baseline_results[baseline_results['team_name'] == team].groupby(['baseline'])
-        for n, g in grouped_results:
-            precision_points = (np.array(list(g[curve_factor_y])).sum(
-                axis=0) / len(g))
-            precision_points = precision_points[1:-10] if cut_edges else precision_points
-            if x_points is None:
-                recall_points = (np.array(list(g[curve_factor_x])).sum(
-                    axis=0) / len(g))
-            else:
-                recall_points = x_points
-            recall_points = recall_points[1:-10] if cut_edges else recall_points
-            # ax.plot(list(recall_new_points), precision_new_points,
-            #         label=f'{baseline} baseline')
-            ax.plot(recall_points, precision_points,
-                    label=f'{baseline_algorithms[n]} baseline', linewidth=5)
-            print(f"Baseline Precision: {[round(e, 2) for e in precision_points]}")
-            print(f"Baseline Recall: {[round(e, 2) for e in recall_points]}")
-    # if 'model' == param:
-    #     plt.xticks(fontsize=9, rotation=-45)
-    if x_points is None:
-        plt.xlim(0, 1 + EXTRA_LIM_GAP)
-    else:
-        x_points = x_points[1:-10] if cut_edges else x_points
-        plt.xlim(x_points[0] - 0.0001, x_points[-2] + EXTRA_LIM_GAP)
-    plt.ylim(0, 1 + EXTRA_LIM_GAP)
-    plt.xticks(fontsize=42)
-    plt.yticks(fontsize=42)
-    ax.set_ylabel(titles[curve_factor_y], fontsize=44)
-    if x_points is None:
-        ax.set_xlabel(titles[curve_factor_x], fontsize=44)
-    elif x_label is not None:
-        ax.set_xlabel(x_label, fontsize=44)
-    # plt.title(f'{params[param]} - {titles[curve_factor_y]}')
-    plt.legend(prop={"size": 34})  # , loc="upper right")
-    save_file_path = f'results_plots/{EXEC_NAME}'
-    create_dir_if_not_exist(save_file_path)
-    save_file_path += f'/{WORKOUTS_SRC}'
-    create_dir_if_not_exist(save_file_path)
-    save_file_path += f'/{team}'
-    create_dir_if_not_exist(save_file_path)
-    if SINGLE_RACE_TYPE:
-        save_file_path += f'/{SINGLE_RACE_TYPE}'
-        create_dir_if_not_exist(save_file_path)
-    if PLOT_ONLY_BEST:
-        save_file_path += f'/{params[param]} -  {titles[curve_factor_y]} - BEST.png'
-    else:
-        save_file_path += f'/{params[param]} -  {titles[curve_factor_y]}.png'
-    plt.savefig(save_file_path)
-    plt.gcf().subplots_adjust(left=0.115, bottom=0.09, top=0.97, right=0.96)
-    plt.show()
 
 
 def plot_bar_feature_selection(team, names, importances, method):
@@ -500,7 +586,7 @@ def plot_catboost(team, X_train, model):
 def get_best_run_data_dict(team):
     result_dict = global_best_params_dict.copy()
     for k in result_dict.keys():
-        if result_dict[k] is None:
+        if PLOT_ONLY_BEST_BY_TEAM and (k in team_best_params_dict[team]):
             result_dict[k] = team_best_params_dict[team][k]
     return result_dict
 
@@ -529,7 +615,7 @@ def create_feature_importance_tables(drop_corr=False, score_table=True, ranking_
     for team in TEAM_NAMES.values():
         if (SINGLE_TEAM is not None) and SINGLE_TEAM != team:
             continue
-        if team in MISSING_WORKOUTS_TEAMS:
+        if team in TEAMS_TO_IGNORE:
             continue
         best_run_data_dir, _ = get_best_run_dir(team)
         X_path = f"{EXEC_BASE_PATH}/{best_run_data_dir}/X_cols_data.csv"
@@ -609,10 +695,13 @@ def create_feature_importance_tables(drop_corr=False, score_table=True, ranking_
         write_fi_to_csv(shap_df, "shap", score_table, ranking_table)
 
 
-def load_last_model(team, index=0):
+def load_last_model(team, index=1):
     best_run_data_dir, best_run_data_dict = get_best_run_dir(team, True)
-    catboost_dir = f"{EXEC_BASE_PATH}/{best_run_data_dir}/['CatBoost', '{best_run_data_dict['result_consideration']}']"
-    last_catboost_model_path = f"{catboost_dir}/{index}_CatBoost.pkl"
+    result_consideration= f"'{best_run_data_dict['result_consideration']}'" if best_run_data_dict['result_consideration'] else 'None'
+    score_model_split= f"'{best_run_data_dict['score_model_split']}'" if best_run_data_dict['score_model_split'] else 'None'
+
+    catboost_dir = f"{EXEC_BASE_PATH}/{best_run_data_dir}/['{best_run_data_dict['model']}', {result_consideration}, {score_model_split}]"
+    last_catboost_model_path = f"{catboost_dir}/{index}_{best_run_data_dict['model']}.pkl"
     model = pickle.load(open(last_catboost_model_path, 'rb'))
     return model
 
@@ -633,7 +722,7 @@ def write_fi_to_csv(df, method, score_table, ranking_table):
         for c in TEAMS_RANKING_DICT:
             if (SINGLE_TEAM is not None) and SINGLE_TEAM != c:
                 continue
-            if c in MISSING_WORKOUTS_TEAMS:
+            if c in TEAMS_TO_IGNORE:
                 continue
             new_column_values = ranking_df_helper[c].sort_values(ascending=False).apply(str)
             new_column_values.index = [n.replace('\n', '') for n in new_column_values.index]
@@ -659,7 +748,7 @@ def plot_feature_importance(number_of_races_to_test_fi, interaction_feature=None
     for team in TEAM_NAMES.values():
         if (SINGLE_TEAM is not None) and SINGLE_TEAM != team:
             continue
-        if team in MISSING_WORKOUTS_TEAMS:
+        if team in TEAMS_TO_IGNORE:
             continue
         best_run_data_dir, _ = get_best_run_dir(team)
         X_path = f"{EXEC_BASE_PATH}/{best_run_data_dir}/X_cols_data.csv"
@@ -679,7 +768,7 @@ def plot_feature_importance(number_of_races_to_test_fi, interaction_feature=None
             X_train_filtered = X_train.drop(columns=['cyclist_id', 'stage_id', 'race_id'])
             plot_relief(team, X_train_filtered, Y_train)
         if SHAP:
-            model = load_last_model(team, index=4)
+            model = load_last_model(team, index=5)
             X_test = X_test.drop(columns=['stage_id', 'cyclist_id', 'race_id'])
             plot_shap(team, X_test, interaction_feature, model)
         if CATBST:
@@ -754,6 +843,36 @@ def plot_catboost_tree():
         g.format = 'png'
         g.render(filename=f'{save_file_path}/Catboost Tree - {team}.gv.png')
 
+def get_best_results_df(model_results, baseline_results,team,with_score_params=False):
+    if (SINGLE_TEAM is not None) and SINGLE_TEAM != team:
+        return
+    best_run_data_dict = get_best_run_data_dict(team)
+    for k in best_run_data_dict:
+        if not with_score_params:
+            if (not WITHOUT_SCORE_MODEL) and (k in scores_cols_to_plot):
+                continue
+        transform = lambda df, k: df[df[k] == best_run_data_dict[k]]
+        if k == 'col_threshold':
+            transform = lambda df, k: df[df[k].apply(str) == best_run_data_dict[k]]
+        if best_run_data_dict[k] is None:
+            transform = lambda df, k: df[df[k].isna()]
+        model_results = transform(model_results, k)
+        if WITH_BASELINE:
+            if k in MODELS_COLS + scores_cols_to_plot:
+                continue
+            baseline_results = transform(baseline_results, k)
+    return model_results, baseline_results
+
+def get_all_teams_best_results_df(model_results, baseline_results):
+    model_results_result,baseline_results_result = pd.DataFrame(), pd.DataFrame()
+    for team in model_results['team_name'].unique():
+        model_results_team = model_results[model_results['team_name'] == team]
+        baseline_results_team = baseline_results[baseline_results['team_name'] == team]
+        model_results_team, baseline_results_team = get_best_results_df(model_results_team, baseline_results_team,team)
+        model_results_result = pd.concat([model_results_result,model_results_team])
+        baseline_results_result = pd.concat([baseline_results_result, model_results_team])
+    return model_results_result, baseline_results_result
+
 
 if __name__ == '__main__':
     file_paths = []
@@ -779,17 +898,57 @@ if __name__ == '__main__':
             else:
                 file_paths = result_list.copy()
             model_results = get_model_result_df(curve_factor_x, curve_factor_y, list_of_files_path=file_paths)
+        elif MULTIPLE_FILES:
+            for res_file in os.listdir(f"{EXEC_BASE_PATH}/final"):
+                if '_Model_' in res_file:
+                    file_paths.append(
+                        f"{EXEC_BASE_PATH}/final/{res_file}")
+            model_results = get_model_result_df(curve_factor_x, curve_factor_y, list_of_files_path=file_paths)
         else:
             model_results = get_model_result_df(curve_factor_x, curve_factor_y, total_results_path=model_results_path)
 
+        file_paths = []
         baseline_results = None
-        if with_baseline:
-            baseline_results = get_baseline_result_df(curve_factor_x, curve_factor_y, baseline_results_path)
+        if WITH_BASELINE:
+            if MULTIPLE_FILES:
+                for res_file in os.listdir(f"{EXEC_BASE_PATH}/final"):
+                    if '_Baselines_' in res_file:
+                        file_paths.append(
+                            f"{EXEC_BASE_PATH}/final/{res_file}")
+                baseline_results = get_baseline_result_df(curve_factor_x, curve_factor_y, list_of_files_path=file_paths)
+            else:
+                baseline_results = get_baseline_result_df(curve_factor_x, curve_factor_y,
+                                                          total_results_path=baseline_results_path)
             baseline_results = baseline_results[baseline_results['iteration'].isin(model_results['iteration'])]
 
-        # model_results = model_results[model_results['cyclists_participated'] > 0]
+        model_results = model_results[~model_results['team_name'].isin(TEAMS_TO_IGNORE)]
+        baseline_results = baseline_results[~baseline_results['team_name'].isin(TEAMS_TO_IGNORE)]
+        model_results = model_results[model_results['col_threshold']!=0.8]
+        baseline_results = baseline_results[baseline_results['col_threshold']!=0.8]
+        model_results['score_model'] = model_results['score_model'].apply(lambda x: None if str(x)=='without' else x)
+        baseline_results['score_model'] = baseline_results['score_model'].apply(lambda x: None if str(x)=='without' else x)
+
+        if WITHOUT_SCORE_MODEL:
+            model_results = model_results[model_results['score_model'].isna()]
+            baseline_results = baseline_results[baseline_results['score_model'].isna()]
+            # model_results = model_results[model_results['score_model_split'] == 'Without']
+            # baseline_results = baseline_results[baseline_results['score_model_split'] == 'Without']
+
 
         model_results = model_results[model_results['workouts_source'] == WORKOUTS_SRC]
+        baseline_results = baseline_results[baseline_results['workouts_source'] == WORKOUTS_SRC]
+        model_results['col_threshold'] = model_results['col_threshold'].apply(lambda x: str(round((1 - x) * 100)) + "%")
+        baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(lambda x: str(round((1 - x) * 100)) + "%")
+
+        model_results['score_model_split'] = model_results['score_model_split'].apply(lambda x: str(round((1 - x) * 100)) + "%" if str(x)!='nan' else x)
+        baseline_results['score_model_split'] = baseline_results['score_model_split'].apply(lambda x: str(round((1 - x) * 100)) + "%" if str(x)!='nan' else x)
+        model_results['k_clusters'] = model_results['k_clusters'].apply(lambda x: "C "+str(int(x)) if str(x)!='nan' else x)
+        baseline_results['k_clusters'] = baseline_results['k_clusters'].apply(lambda x: "C "+str(int(x)) if str(x)!='nan' else x)
+
+
+        model_results = model_results[model_results['score_model_split'].isna()]
+
+
 
         # without 2022data
         # baseline_results=baseline_results[baseline_results['iteration']>=38]
@@ -800,11 +959,16 @@ if __name__ == '__main__':
         # model_results = model_results[model_results['col_threshold'] == '0.4']
         # model_results = model_results[model_results['imputer_workouts'] == 'without']
 
-        # if with_baseline:
-            # baseline_results = baseline_results[baseline_results['time_window'] == 5]
-            # baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(str)
-            # baseline_results = baseline_results[baseline_results['col_threshold'] == '0.4']
-            # baseline_results = baseline_results[baseline_results['imputer_workouts'] == 'without']
+        # if WITH_BASELINE:
+        # baseline_results = baseline_results[baseline_results['time_window'] == 5]
+        # baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(str)
+        # baseline_results = baseline_results[baseline_results['col_threshold'] == '0.4']
+        # baseline_results = baseline_results[baseline_results['imputer_workouts'] == 'without']
+
+
+
+
+
 
     if PLOT_TIME:
         plot_time_results_at_i(curve_factor_y, top_i, model_results, baseline_results=baseline_results,
@@ -813,42 +977,11 @@ if __name__ == '__main__':
 
     if PLOT_EXPR_RESULTS:
         model_results = model_results[model_results['model'].isin(models_to_plot)]
-
-        # if PLOT_ONLY_BEST:
-        #     best_run_data_dict = get_best_run_data_dict(team)
-        #     model_results = model_results[model_results['model'] == best_params_dict['model']]
-        #     model_results = model_results[model_results['imputer'] == best_params_dict['imputer']]
-        #     model_results = model_results[model_results['scaler'] == best_params_dict['scaler']]
-        #     model_results = model_results[model_results['time_window'] == 5]
-        # model_results['col_threshold'] = model_results['col_threshold'].apply(str)
-        # model_results['row_threshold'] = model_results['row_threshold'].apply(str)
-        #     model_results = model_results[model_results['row_threshold'] == '0.7']
-        #     model_results = model_results[model_results['col_threshold'] == '0.7']
-        #
-        #     if with_baseline:
-        #         baseline_results = baseline_results[baseline_results['scaler'] == best_params_dict['scaler']]
-        #         baseline_results = baseline_results[baseline_results['imputer'] == best_params_dict['imputer']]
-        #         baseline_results = baseline_results[baseline_results['time_window'] == 5]
-        # if with_baseline:
-            # baseline_results['col_threshold'] = baseline_results['col_threshold'].apply(str)
-            # baseline_results['row_threshold'] = baseline_results['row_threshold'].apply(str)
-        #         baseline_results = baseline_results[baseline_results['row_threshold'] == '0.7']
-        #         baseline_results = baseline_results[baseline_results['col_threshold'] == '0.7']
-
         plot_pr_results(curve_factor_x, curve_factor_y, model_results, baseline_results=baseline_results,
                         cut_edges=True, params_to_plot=params_to_plot)
 
     if PLOT_KN_RECALLS:
         model_results = model_results[model_results['model'].isin(models_to_plot)]
-        # if PLOT_ONLY_BEST:
-        #     model_results = model_results[model_results['scaler'] == best_params_dict['scaler']]
-        #     model_results = model_results[model_results['time_window'] == 5]
-        #     model_results['col_threshold'] = model_results['col_threshold'].apply(str)
-        #     model_results['row_threshold'] = model_results['row_threshold'].apply(str)
-        #     model_results = model_results[model_results['row_threshold'] == '0.7']
-        #     model_results = model_results[model_results['col_threshold'] == '0.7']
-        #     model_results = model_results[model_results['model'].isin(models_to_plot)]
-        #     model_results = model_results[model_results['imputer'] == best_params_dict['imputer']]
         curve_factor_y = 'recalls_kn'
         plot_pr_results(None, curve_factor_y, model_results, baseline_results=baseline_results,
                         x_points=xpoints, x_label='k',
@@ -858,7 +991,7 @@ if __name__ == '__main__':
         plot_auc_results(curve_factor_x, curve_factor_y, model_results, baseline_results=baseline_results)
 
     if AUC_PR_INTERACTION:
-        params_interaction = [('imputer', 'model')]
+        params_interaction = [('time_window', 'col_threshold'),('col_threshold', 'imputer'),('imputer', 'model')]
         for param_1, param_2 in params_interaction:
             plot_auc_interaction_results(curve_factor_x, curve_factor_y, param_1, param_2, model_results)
 
