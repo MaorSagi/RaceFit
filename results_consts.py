@@ -350,8 +350,8 @@ ONE_DAY_RACES, MAJOR_TOURS, GRAND_TOURS = "One Day Races", "Major Tours", "Grand
 curve_factor_x = 'recalls'  # 'precision_recall_curve'
 curve_factor_y = 'precisions'
 EXEC_NAME = "Dec 5 - stage prediction"  # "Sep 6-rerun - J paper results"#
-EXEC_BASE_PATH = f"./executions/{EXEC_NAME}"#f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"  #
-WORKOUTS_SRC = 'STRAVA'  # 'STRAVA'
+EXEC_BASE_PATH = f"M:/Maor/Expr/maors_code/executions/{EXEC_NAME}"  #f"./executions/{EXEC_NAME}"#
+WORKOUTS_SRC = 'STRAVA'
 
 agg_func = 'SmartAgg'
 RACEFIT_CYCLIST_STAGE = "RaceFit - Stage-Cyclist"
@@ -370,20 +370,21 @@ features_color_dict = {f: BAR_PLOT_COLORS_DICT[f.split()[0]] for f in features_n
 LINE_WIDTH = 5
 
 
-
-WITHOUT_SCORE_MODEL = False
+WITHOUT_SCORE_MODEL = True
 PLOT_ALL_TEAMS_AVG = False  # None
 SINGLE_RACE_TYPE = None
 SINGLE_TEAM = None#"Groupama - FDJ"#"Israel - Premier Tech"  # "AG2R Citroën Team"  # "Israel - Premier Tech"
-PLOT_AUC_PR = False
+
 MULTIPLE_FILES = False
 ZOOM_IN = None#{'x':(0,1),'y':(0,1)}
+
+PLOT_AUC_PR = False
 
 AUC_PR_INTERACTION = False
 
 PLOT_EXPR_RESULTS = True
 WITH_BASELINE = True
-WITH_MODEL_BASELINE=True
+WITH_MODEL_BASELINE=False
 
 result_list = []  # [f"{EXEC_BASE_PATH}/['without', 5, 'STRAVA', 'Israel - Premier Tech']/[0.4, 'SimpleImputer']/['CatBoost']/ModelResults.csv"]  # [f"{EXEC_BASE_PATH}/[0.7, 0.7, 'SimpleImputer', 'without', 5, 'SmartAgg', 'TP', 'Israel - Premier Tech']/['CatBoost', None]/ModelResults.csv"]
 baseline_results_path = f"{EXEC_BASE_PATH}/Final_Baselines_Results 0.csv"
@@ -395,18 +396,18 @@ top_i = 8
 PLOT_KN_RECALLS = False
 xpoints = range(K_POINTS)
 
-# # global by stage without score
-# global_best_params_dict = {
-#     'col_threshold': '60%',  # None,#'0.5',
-#     'imputer': 'SimpleImputer',
-#     # 'imputer_workouts': 'without',
-#     # 'result_consideration':None,
-#     'time_window': 5,
-#     'model': 'CatBoost',
-#     # 'score_model': 'without',
-#     # 'score_model_split':None,
-#     # 'score_model':'CatBoost',
-# }
+# global by stage without score
+global_best_params_dict = {
+    'col_threshold': '60%',  # None,#'0.5',
+    'imputer': 'SimpleImputer',
+    # 'imputer_workouts': 'without',
+    # 'result_consideration':None,
+    'time_window': 5,
+    'model': 'CatBoost',
+    # 'score_model': 'without',
+    # 'score_model_split':None,
+    # 'score_model':'CatBoost',
+}
 
 
 # # global by race
@@ -422,19 +423,19 @@ xpoints = range(K_POINTS)
 #     # 'score_model':'CatBoost',
 # }
 
-# global by stage with score
-global_best_params_dict = {
-    'col_threshold': '60%',  # None,#'0.5',
-    'imputer': 'SimpleImputer',
-    # 'imputer_workouts': 'without',
-    # 'result_consideration':None,
-    'time_window': 5,
-    'model': 'CatBoost',
-    'score_model': 'CatBoost',
-    'k_clusters':'C 3',
-    # 'score_model_split':None,
-    # 'score_model':'CatBoost',
-}
+# # global by stage with score
+# global_best_params_dict = {
+#     'col_threshold': '60%',  # None,#'0.5',
+#     'imputer': 'SimpleImputer',
+#     # 'imputer_workouts': 'without',
+#     # 'result_consideration':None,
+#     'time_window': 5,
+#     'model': 'CatBoost',
+#     'score_model': 'CatBoost',
+#     'k_clusters':'C 3',
+#     # 'score_model_split':None,
+#     # 'score_model':'CatBoost',
+# }
 
 # # BY RACE
 # team_best_params_dict = {'AG2R Citroën Team': {},
@@ -448,9 +449,9 @@ global_best_params_dict = {
 #                          'UAE Team Emirates': {},
 #                          'Trek - Segafredo': {}
 #                          }
-#
 
-# # BY STAGE
+
+# BY STAGE
 team_best_params_dict = {'AG2R Citroën Team': {},
                          'CCC Team': {},
                          'Team Jumbo-Visma': {},
@@ -467,18 +468,19 @@ PLOT_ONLY_BEST = False  # 'model'
 PLOT_ONLY_BEST_BY_TEAM = False
 
 params_to_plot = {
-                  # 'imputer': 'Imputer Type',
+                  'imputer': 'Imputer Type',
                   # 'imputer_workouts': 'Workouts Imputer Type',
                   # 'model': 'Model',
-                  'score_model': 'Score Model',
+                  # 'score_model': 'Score Model',
                   # 'score_model_split':'Score model Split',
-                  'k_clusters': 'Number of Clusters',
+                  # 'k_clusters': 'Number of Clusters',
                   # 'result_consideration':'Results Consideration',
                   # 'row_threshold': 'Row Threshold',
                   # 'col_threshold': 'Column Threshold',
-                  # 'time_window': 'Time Window Size'
+                  # 'time_window': 'Time Window Size',
+                  #   'weighted_mean': 'Weighted Mean'
                   }
-imputation_labels = {'without': 'Without imputation', 'SimpleImputer': 'With imputation - SimpleImputer',
+imputation_labels = {'without': 'Without imputation', 'SimpleImputer': 'With imputation',
                      'KNNImputer': 'With imputation - KNNImputer'}  # {'without': 'Without imputation', 'SimpleImputer': 'With imputation'}
 model_labels = {'DecisionTree': 'Decision Tree', 'RandomForest': 'Random Forest', 'CatBoost': 'CatBoost',
                 'Logistic': 'Logistic Regression', 'without': 'Without'}

@@ -188,7 +188,7 @@ def fit_model(X, y, iteration, model_name, overwrite, params, result_considerati
         X_new = drop_unnecessary_features(X, params)
         if result_consideration:
             X_new, y = duplicate_high_results_records(X_new, y, result_consideration)
-        if model_name in ['Logistic','DecisionTree','RandomForest']:
+        if model_name in ['Logistic', 'DecisionTree', 'RandomForest']:
             X_new = X_new.dropna()
             y = y.loc[X_new.index]
         train_func = params[model_type][1]['train']
@@ -322,7 +322,7 @@ def evaluate_model_predictions(X_test: pd.DataFrame, cyclists_columns: list[int,
         cyclists_participated_in_race_predict = get_cyclists_prediction_in_race(cyclists_columns, cyclists_in_team, g,
                                                                                 i, race_prediction,
                                                                                 races_cyclists_soft_pred_matrix,
-                                                                                stages_cyclists_pred_matrix)
+                                                                                stages_cyclists_pred_matrix,params['weighted_mean'])
 
         top_cyclists = get_top_cyclists(cyclists_participated_in_race_predict, cyclists_to_choose, y_prob)
 
@@ -346,7 +346,7 @@ def set_prediction_proba_matrix(cyclists_columns: list[str, ...], race_idx: int,
                                 races_cyclists_soft_pred_matrix: pd.DataFrame, y_prob: pd.Series,
                                 top_cyclists: list[int, ...],
                                 cyclists_in_team: set[int, ...],
-                                cyclists_participated_in_race_predict: pd.DataFrame) -> None:
+                                cyclists_participated_in_race_predict: pd.DataFrame) -> pd.DataFrame:
     soft_pred_matrix = races_cyclists_soft_pred_matrix.copy()
     soft_pred_matrix.loc[race_idx, RACE_ID_FEATURE] = race_id
     soft_pred_matrix.loc[race_idx, cyclists_columns[1:]] = 0
@@ -358,7 +358,7 @@ def set_prediction_proba_matrix(cyclists_columns: list[str, ...], race_idx: int,
 
 
 def set_prediction_matrix(cyclists_columns: list[str], race_idx: int, race_id: int,
-                          races_cyclists_pred_matrix: pd.DataFrame, top_cyclists: list[str]) -> None:
+                          races_cyclists_pred_matrix: pd.DataFrame, top_cyclists: list[str]) -> pd.DataFrame:
     races_cyclists_pred_matrix.loc[race_idx, RACE_ID_FEATURE] = race_id
     races_cyclists_pred_matrix.loc[race_idx, cyclists_columns[1:]] = 0
     races_cyclists_pred_matrix.loc[race_idx, top_cyclists] = 1
@@ -373,7 +373,7 @@ def get_race_cyclists_in_input(X_test: pd.DataFrame, race_id: int) -> set[str, .
 def get_cyclists_prediction_in_race(cyclists_columns: list[str, ...], cyclists_in_team: set[int], race_group,
                                     race_idx: int, race_prediction: bool,
                                     races_cyclists_soft_pred_matrix: pd.DataFrame,
-                                    stages_cyclists_pred_matrix: pd.DataFrame) -> pd.Series:
+                                    stages_cyclists_pred_matrix: pd.DataFrame,weighted_mean:str=None) -> pd.Series:
     if race_prediction:
         cyclists_participated_in_race_predict = races_cyclists_soft_pred_matrix.loc[
             race_idx, set.intersection(set(cyclists_columns), cyclists_in_team)].fillna(0)
@@ -381,9 +381,17 @@ def get_cyclists_prediction_in_race(cyclists_columns: list[str, ...], cyclists_i
         stages_in_race = race_group[STAGE_ID_FEATURE].unique()
         curr_race_stages_pred = stages_cyclists_pred_matrix[STAGE_ID_FEATURE].isin(stages_in_race)
         cyclists_participated_in_race_predict = stages_cyclists_pred_matrix.loc[
-            curr_race_stages_pred, set.intersection(set(cyclists_columns), cyclists_in_team)]
-        cyclists_participated_in_race_predict = cyclists_participated_in_race_predict.mean().fillna(0)
-    return cyclists_participated_in_race_predict
+            curr_race_stages_pred]
+        relevant_cyclists = list(set.intersection(set(cyclists_columns), cyclists_in_team))
+        if weighted_mean is not None:
+            from DataManager import filtered_stages
+            merged_with_stages_df = cyclists_participated_in_race_predict.merge(filtered_stages[[STAGE_ID_FEATURE,weighted_mean]], on='stage_id')
+            merged_with_stages_df[relevant_cyclists] = merged_with_stages_df[relevant_cyclists].mul(
+                merged_with_stages_df[weighted_mean], axis='index')
+            cyclists_participated_in_race_predict = merged_with_stages_df[relevant_cyclists].sum() /  merged_with_stages_df[weighted_mean].sum()
+        else:
+            cyclists_participated_in_race_predict = cyclists_participated_in_race_predict[relevant_cyclists].mean()
+    return cyclists_participated_in_race_predict.fillna(0)
 
 
 def get_top_cyclists(cyclists_participated_in_race_predict: pd.Series, cyclists_to_choose: int, y_prob: pd.Series):
@@ -516,16 +524,17 @@ def append_baselines_results(data_files: str, exec_dir_path: str, file_suffix: i
     result_df = pd.read_csv(data_files)
     file_suffix = test_size_and_get_suffix(exec_dir_path, FINAL_BASELINES_FILE_NAME, file_suffix, team_name)
     for i in range(len(result_df)):
-        append_row_to_csv(get_final_result_file_name(exec_dir_path,FINAL_BASELINES_FILE_NAME, file_suffix, team_name), result_df.iloc[i],
+        append_row_to_csv(get_final_result_file_name(exec_dir_path, FINAL_BASELINES_FILE_NAME, file_suffix, team_name),
+                          result_df.iloc[i],
                           result_df.columns)
     return file_suffix
 
 
-def get_final_result_file_name(exec_dir_path,file_name, file_suffix, team_name):
+def get_final_result_file_name(exec_dir_path, file_name, file_suffix, team_name):
     final_results_file = f'{exec_dir_path}/{file_name} {file_suffix}'
     if team_name:
         final_results_file += f' {team_name}'
-    return final_results_file.replace('.csv','')+".csv"
+    return final_results_file.replace('.csv', '') + ".csv"
 
 
 def append_model_results(data_files: str, exec_dir_path: str, raw_data_dir: str, data_dir: str, model_dir: str,
@@ -535,8 +544,10 @@ def append_model_results(data_files: str, exec_dir_path: str, raw_data_dir: str,
     if os.path.exists(results_path):
         result_df = pd.read_csv(results_path)
         for i in range(len(result_df)):
-            append_row_to_csv(get_final_result_file_name(exec_dir_path,FINAL_MODEL_RESULTS_FILE_NAME, file_suffix, team_name), result_df.iloc[i],
-                              result_df.columns)
+            append_row_to_csv(
+                get_final_result_file_name(exec_dir_path, FINAL_MODEL_RESULTS_FILE_NAME, file_suffix, team_name),
+                result_df.iloc[i],
+                result_df.columns)
     else:
         error_row = {}
         if not APPEND_RESULTS_WITHOUT_SCORE_MODEL:
@@ -554,13 +565,14 @@ def append_model_results(data_files: str, exec_dir_path: str, raw_data_dir: str,
                     error_row[MODELS_COLS[i]] = models_list[i]
                 append_row_to_csv(f'{exec_dir_path}/{ERROR_PARAMS_FILE_NAME}', error_row)
             except:
-                log(f'Problem to create error row, path doesnt exist: {results_path}, params: {error_row}', 'ERROR', log_path=EXEC_PATH)
+                log(f'Problem to create error row, path doesnt exist: {results_path}, params: {error_row}', 'ERROR',
+                    log_path=EXEC_PATH)
         log(f'Problem to append results, params: {error_row}', 'ERROR', log_path=EXEC_PATH)
     return file_suffix
 
 
-def test_size_and_get_suffix(exec_dir_path,file_name, file_suffix, team_name):
-    final_results_file = get_final_result_file_name(exec_dir_path,file_name, file_suffix, team_name)
+def test_size_and_get_suffix(exec_dir_path, file_name, file_suffix, team_name):
+    final_results_file = get_final_result_file_name(exec_dir_path, file_name, file_suffix, team_name)
     if os.path.exists(final_results_file):
         results_file_size = os.path.getsize(final_results_file)
         if results_file_size > MAX_FILE_SIZE:

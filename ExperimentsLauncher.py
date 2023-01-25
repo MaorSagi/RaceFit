@@ -270,7 +270,7 @@ def handle_job_use_cases(raw_data_exec_path: str, clustering: bool, create_input
                          create_stages_cyclists_matrix: bool, eval_baselines: bool,
                          eval_model: bool, k_clusters: int, overwrite: bool, preprocessing: bool, train_eval: bool,
                          train_model: bool) -> None:
-    data_exec_path=''
+    data_exec_path = ''
     if create_stages_cyclists_matrix:
         create_boolean_matrix()
     X_raw_data_path = f'{raw_data_exec_path}/X_cols_raw_data.csv'
@@ -334,9 +334,11 @@ def write_results_to_file(results_path: str, iteration: int,
             total_scores[k] = params_cpy[k]
     append_row_to_csv(results_path, total_scores)
 
+
 def extract_append_results_exec_params() -> None:
     parser = init_append_results_exec_parser()
     init_append_results_params_from_parser(parser)
+
 
 def init_append_results_exec_parser() -> ArgumentParser:
     parser = ArgumentParser()
@@ -346,10 +348,10 @@ def init_append_results_exec_parser() -> ArgumentParser:
     return parser
 
 
-
 def extract_experiments_exec_params() -> None:
     parser = init_experiments_exec_parser()
     init_experiments_params_from_parser(parser)
+
 
 def init_append_results_params_from_parser(parser: ArgumentParser) -> None:
     global params
@@ -385,6 +387,7 @@ def init_experiments_exec_parser() -> ArgumentParser:
     parser.add_argument('-oi', '--only-important', type=int)
     parser.add_argument('-rp', '--race-prediction', type=int)
     parser.add_argument('-rc', '--result-consideration', type=str)
+    parser.add_argument('-wm', '--weighted-mean', type=str)
     return parser
 
 
@@ -431,6 +434,7 @@ def init_experiments_params_from_parser(parser: ArgumentParser) -> None:
                   result_consideration=args.result_consideration if args.result_consideration else None,
                   score_model_split=args.score_model_split if args.score_model_split else None,
                   k_clusters=args.k_clusters if args.k_clusters else None,
+                  weighted_mean=args.weighted_mean if args.weighted_mean else None
                   )
 
 

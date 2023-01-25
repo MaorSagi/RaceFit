@@ -1,4 +1,6 @@
 import os
+
+import catboost
 import shap
 from sklearn.feature_selection import mutual_info_classif, chi2, SelectKBest
 import sklearn_relief as relief
@@ -276,6 +278,8 @@ def plot_pr_results(curve_factor_x, curve_factor_y, model_results, baseline_resu
                        params_to_plot, x_points, cut_edges, x_label)
     else:
         for team in model_results['team_name'].unique():
+            if team in TEAMS_TO_IGNORE:
+                continue
             plot_pr_graphs(curve_factor_x, curve_factor_y, model_results, baseline_results,
                            params_to_plot, x_points, cut_edges, x_label, team)
 
@@ -454,6 +458,10 @@ def plot_bar_feature_selection(team, names, importances, method):
     plt.yticks(fontsize=25)
     # ax.bar_label(bar,fontsize=22)
     # ax.set_title(f'Feature importance - {method}')
+    legend_dict = {'race': '#1e90ff', 'workouts': '#7eb54e', 'cyclist': '#f39C12'}
+    labels = list(legend_dict.keys())
+    handles = [plt.Rectangle((0, 0), 1, 1, color=legend_dict[label]) for label in labels]
+    plt.legend(handles, labels, prop={'size': 22}, bbox_to_anchor=(-1.1, 1.01))
     plt.gcf().subplots_adjust(left=0.6, right=0.98, top=0.98, bottom=0.06)
     plt.savefig(f'results_plots/{EXEC_NAME}/{WORKOUTS_SRC}/{team}/Feature importance - {method}.png')
     plt.show()
@@ -503,10 +511,12 @@ def get_test_train_by_race(X_path, number_of_races_to_test_fi):
 def get_information_gain_scores(X, Y, threshold=10):
     high_score_features, scores = [], []
     feature_scores = mutual_info_classif(X, Y, random_state=0)
+    zipped = [x for x in zip(feature_scores, X.columns) if str(x[0]) != 'nan']
+    sorted_list = sorted(zipped, reverse=True)
     if threshold is None:
-        iterable = sorted(zip(feature_scores, X.columns), reverse=True)
+        iterable = sorted_list
     else:
-        iterable = sorted(zip(feature_scores, X.columns), reverse=True)[:threshold]
+        iterable = sorted_list[:threshold]
     for score, f_name in iterable:
         # print(f_name, score)
         high_score_features.append(f_name)
@@ -567,10 +577,12 @@ def get_catboost_scores(X_train, model, threshold=10):
     high_score_features, scores = [], []
     features_names = list(X_train.columns)
     fi_scores = model.get_feature_importance()
+    zipped = [x for x in zip(fi_scores, features_names) if str(x[0]) != 'nan']
+    sorted_list = sorted(zipped, reverse=True)
     if threshold is None:
-        iterable = sorted(zip(fi_scores, features_names), reverse=True)
+        iterable = sorted_list
     else:
-        iterable = sorted(zip(fi_scores, features_names), reverse=True)[:threshold]
+        iterable = sorted_list[:threshold]
     for score, f_name in iterable:
         # print(f_name, score)
         high_score_features.append(f_name)
@@ -599,10 +611,12 @@ def get_chi_scores(X_train, Y_train, threshold=10):
     X_new = SelectKBest(chi2, k='all')
     X_new.fit_transform(X_train, Y_train)
     high_score_features, scores = [], []
+    zipped = [x for x in zip(X_new.scores_, X_new.feature_names_in_) if str(x[0])!='nan']
+    sorted_list = sorted(zipped, reverse=True)
     if threshold is None:
-        iterable = sorted(zip(X_new.scores_, X_new.feature_names_in_), reverse=True)
+        iterable = sorted_list
     else:
-        iterable = sorted(zip(X_new.scores_, X_new.feature_names_in_), reverse=True)[:threshold]
+        iterable = sorted_list[:threshold]
     for score, f_name in iterable:
         # print(f_name, score)
         high_score_features.append(f_name)
@@ -697,9 +711,8 @@ def create_feature_importance_tables(drop_corr=False, score_table=True, ranking_
 
 def load_last_model(team, index=1):
     best_run_data_dir, best_run_data_dict = get_best_run_dir(team, True)
-    result_consideration= f"'{best_run_data_dict['result_consideration']}'" if best_run_data_dict['result_consideration'] else 'None'
-    score_model_split= f"'{best_run_data_dict['score_model_split']}'" if best_run_data_dict['score_model_split'] else 'None'
-
+    result_consideration= f"'{best_run_data_dict['result_consideration']}'" if ('result_consideration' in best_run_data_dict and best_run_data_dict['result_consideration']) else 'None'
+    score_model_split= f"'{best_run_data_dict['score_model_split']}'" if ('score_model_split' in best_run_data_dict and best_run_data_dict['score_model_split']) else 'None'
     catboost_dir = f"{EXEC_BASE_PATH}/{best_run_data_dir}/['{best_run_data_dict['model']}', {result_consideration}, {score_model_split}]"
     last_catboost_model_path = f"{catboost_dir}/{index}_{best_run_data_dict['model']}.pkl"
     model = pickle.load(open(last_catboost_model_path, 'rb'))
@@ -708,7 +721,8 @@ def load_last_model(team, index=1):
 
 def get_best_run_dir(team, return_dict=False):
     best_run_data_dict = get_best_run_data_dict(team)
-    best_run_data_dir = f"['{best_run_data_dict['imputer_workouts']}', {best_run_data_dict['time_window']}, '{WORKOUTS_SRC}', '{team}']/[{best_run_data_dict['col_threshold']}, '{best_run_data_dict['imputer']}']"
+    best_run_data_dict['col_threshold'] = 1-(int(best_run_data_dict['col_threshold'][:-1])/100)
+    best_run_data_dir = f"['without', {best_run_data_dict['time_window']}, '{WORKOUTS_SRC}', '{team}']/[{best_run_data_dict['col_threshold']}, '{best_run_data_dict['imputer']}']"
     return (best_run_data_dir, best_run_data_dict) if return_dict else (best_run_data_dir, None)
 
 
@@ -791,10 +805,12 @@ def plot_shap(team, X_test, interaction_feature, model, threshold=10):
     plt.savefig(f'results_plots/{EXEC_NAME}/{WORKOUTS_SRC}/{team}/Shap summary.png')
     high_score_features, scores = [], []
     fi_scores = np.abs(shap_values).mean(0)
+    zipped = [x for x in zip(fi_scores, features_names) if str(x[0]) != 'nan']
+    sorted_list = sorted(zipped, reverse=True)
     if threshold is None:
-        iterable = sorted(zip(fi_scores, features_names), reverse=True)
+        iterable = sorted_list
     else:
-        iterable = sorted(zip(fi_scores, features_names), reverse=True)[:threshold]
+        iterable = sorted_list[:threshold]
     for score, f_name in iterable:
         # print(f_name, score)
         high_score_features.append(f_name)
@@ -846,6 +862,8 @@ def plot_catboost_tree():
 def get_best_results_df(model_results, baseline_results,team,with_score_params=False):
     if (SINGLE_TEAM is not None) and SINGLE_TEAM != team:
         return
+    if team is None:
+        return get_all_teams_best_results_df(model_results, baseline_results)
     best_run_data_dict = get_best_run_data_dict(team)
     for k in best_run_data_dict:
         if not with_score_params:
@@ -870,7 +888,7 @@ def get_all_teams_best_results_df(model_results, baseline_results):
         baseline_results_team = baseline_results[baseline_results['team_name'] == team]
         model_results_team, baseline_results_team = get_best_results_df(model_results_team, baseline_results_team,team)
         model_results_result = pd.concat([model_results_result,model_results_team])
-        baseline_results_result = pd.concat([baseline_results_result, model_results_team])
+        baseline_results_result = pd.concat([baseline_results_result, baseline_results_team])
     return model_results_result, baseline_results_result
 
 
@@ -927,6 +945,8 @@ if __name__ == '__main__':
         baseline_results = baseline_results[baseline_results['col_threshold']!=0.8]
         model_results['score_model'] = model_results['score_model'].apply(lambda x: None if str(x)=='without' else x)
         baseline_results['score_model'] = baseline_results['score_model'].apply(lambda x: None if str(x)=='without' else x)
+
+        # model_results['weighted_mean'] = model_results['weighted_mean'].apply(lambda x: 'without' if str(x)=='nan' else x)
 
         if WITHOUT_SCORE_MODEL:
             model_results = model_results[model_results['score_model'].isna()]

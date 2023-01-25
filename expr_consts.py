@@ -1,17 +1,16 @@
 APPEND_RESULTS, RUN_EXPERIMENTS = "append_results", "run_experiments"
-EXPR_TASK = RUN_EXPERIMENTS
+EXPR_TASK = APPEND_RESULTS
 EXEC_NAME = 'Jan 17 - weighted mean'
-EXECS_DIR_PATH = 'executions'#'M:\Maor\Expr\maors_code\executions'#'executions'#
+EXECS_DIR_PATH = 'executions'  # 'M:\Maor\Expr\maors_code\executions'#'executions'#
 EXEC_PATH = f'{EXECS_DIR_PATH}/{EXEC_NAME}'
 ALLOCATION_MATRICES_PATH = 'allocation_matrices'
 SIMILARITY_COEFF = 10000000000000000.0
-MAX_FILE_SIZE=1_500_000_000
+MAX_FILE_SIZE = 1_500_000_000
 NUM_OF_POINTS = 40
 K_POINTS = 10
 DECISION_TIME_GAP = 1
 WITHOUT_MIN_MAX_COLS = True
 APPEND_RESULTS_WITHOUT_SCORE_MODEL = False
-
 
 MODEL_RESULTS_FILE_NAME, FINAL_MODEL_RESULTS_FILE_NAME = 'ModelResults.csv', 'Final_Model_Results.csv'
 BASELINES_FILE_NAME, FINAL_BASELINES_FILE_NAME = 'BaselinesResults.csv', 'Final_Baselines_Results.csv'
@@ -104,8 +103,8 @@ STRAVA_CYCLIST_STATS_COLS = ['total_races_number_in_team', 'cyclist_total_races_
 RAW_DATA_COLS = ['team_name', 'workouts_source', 'time_window', 'imputer_workouts']
 DATA_COLS = ['col_threshold', 'imputer']  # 'row_threshold','scaler', 'aggregation_function'
 MODEL, SCORE_MODEL = 'model', 'score_model'
-MODELS_COLS = [MODEL,'result_consideration','score_model_split']  # , 'feature_isolation'
-SCORE_MODELS_COLS = [SCORE_MODEL,'k_clusters']  # , 'feature_isolation'
+MODELS_COLS = [MODEL, 'result_consideration', 'score_model_split']  # , 'feature_isolation'
+SCORE_MODELS_COLS = [SCORE_MODEL, 'k_clusters','weighted_mean']  # , 'feature_isolation'
 LOG_LEVEL = 'create_input'
 LOG_DICT = {'ERROR': 0, 'INFO': 1, 'Scores': 2, 'CV': 3, 'create_input': 4}
 LEAVE_ONE_OUT = 'leave_one_out'
@@ -153,3 +152,6 @@ TP_AVG_COLS = ['hr_min', 'hr_max', 'hr_avg'
 TP_LAST_COLS = ['workout_datetime']
 RACE_ID_FEATURE, STAGE_ID_FEATURE, CYCLIST_ID_FEATURE = 'race_id', 'stage_id', 'cyclist_id'
 IDS_COLS = [RACE_ID_FEATURE, STAGE_ID_FEATURE, CYCLIST_ID_FEATURE]
+
+DISTANCE, ELEVATION_GAIN, BOTH = 'distance', 'elevation_gain', 'both'
+
