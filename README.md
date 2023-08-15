@@ -21,7 +21,7 @@ Most of the data is accessible and can be downloaded [here](https://www.ise.bgu.
 
 Data description can be found in the paper under "The IPT’s Cyclists’ Workouts and Races Dataset" section and in the README file contained in the ZIP file.
 
-*The database of the Training Peaks cyclist workouts can not be published, STRAVA workouts are available in the ZIP file.
+*The Training Peaks cyclist workouts can not be published, STRAVA workouts are available in the ZIP file.
 
 ## Running instructions
 
