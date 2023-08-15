@@ -17,8 +17,8 @@ In order to install the environment from the file run the following command:
 ```
     
 ## Data
-
-The database of the cyclists, races, and teams can not be publish currently, part of the data might be publish soon. In the meantime, data description can be found in the paper under "The IPT’s Cyclists’ Workouts and Races Dataset" section.
+Most of the data is accessible and can be downloaded [here]([url](https://www.ise.bgu.ac.il/clusters/CyclistRaceData.zip)), The data csv files should be located in the working directory in "db" folder. Data description can be found in the paper under "The IPT’s Cyclists’ Workouts and Races Dataset" section and in the README file contained in the ZIP file.
+**The database of the Training Peaks cyclist workouts can not be published, STRAVA workouts are available in the ZIP file.
 
 ## Running instructions
 
